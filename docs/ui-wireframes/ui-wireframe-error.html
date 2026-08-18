@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Suno Mastering - Error State</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 32px;
+            margin-bottom: 8px;
+        }
+        
+        .header p {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+        
+        .content {
+            padding: 30px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 400px;
+        }
+        
+        .error-card {
+            background: linear-gradient(135deg, #ffe8e8 0%, #ffebee 100%);
+            border: 2px solid #dc3545;
+            border-radius: 8px;
+            padding: 30px;
+            width: 100%;
+            max-width: 600px;
+        }
+        
+        .error-card h2 {
+            color: #721c24;
+            font-size: 18px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .error-icon {
+            font-size: 28px;
+        }
+        
+        .error-message {
+            font-size: 14px;
+            color: #721c24;
+            line-height: 1.8;
+            margin-bottom: 20px;
+            background: rgba(255, 255, 255, 0.5);
+            padding: 15px;
+            border-radius: 4px;
+            border-left: 4px solid #dc3545;
+        }
+        
+        .error-help {
+            font-size: 13px;
+            color: #a02622;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+        
+        .error-help strong {
+            color: #721c24;
+        }
+        
+        .error-details {
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            color: #666;
+            line-height: 1.6;
+            overflow-x: auto;
+            max-height: 150px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        
+        .error-details-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        
+        .button-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 12px;
+        }
+        
+        button {
+            padding: 12px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .btn-primary {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #c82333;
+        }
+        
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+        
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+        
+        @media (max-width: 768px) {
+            .button-row {
+                grid-template-columns: 1fr;
+            }
+            
+            .content {
+                padding: 20px;
+            }
+            
+            .error-card {
+                padding: 20px;
+            }
+            
+            .header h1 {
+                font-size: 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>SUNO MASTERING</h1>
+            <p>Streaming-ready WAV mastering</p>
+        </div>
+        
+        <div class="content">
+            <div class="error-card">
+                <h2>
+                    <span class="error-icon">⚠️</span>
+                    ERROR DURING MASTERING
+                </h2>
+                
+                <div class="error-message">
+                    <strong>Could not load targets.json</strong>
+                    <br>
+                    Make sure targets.json exists in the project root and is properly formatted.
+                </div>
+                
+                <div class="error-help">
+                    <strong>What went wrong?</strong>
+                    <br>
+                    The mastering system requires a targets.json file to apply corrective EQ and stereo width adjustments. This file defines the desired frequency balance and width targets for the output.
+                    <br><br>
+                    See the documentation for target file requirements and format.
+                </div>
+                
+                <div class="error-details-label">Error Details</div>
+                <div class="error-details">TargetsLoadError: [Errno 2] No such file or directory: 'targets.json'
+
+Traceback (most recent call last):
+  File "suno_mastering/targets/loader.py", line 45, in load_targets
+    with open(targets_path, "r", encoding="utf-8") as fh:
+FileNotFoundError: [Errno 2] No such file or directory: 'targets.json'</div>
+                
+                <div class="button-row">
+                    <button class="btn-secondary">📋 Copy details</button>
+                    <button class="btn-primary">🔄 Try again</button>
+                    <button class="btn-secondary">Reset</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

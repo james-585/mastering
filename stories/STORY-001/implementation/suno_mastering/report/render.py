@@ -297,6 +297,38 @@ def render_markdown(report: ReportData) -> str:
                 f"gain={a.gain_db:+.2f} dB"
             )
 
+    if report.transient_restoration_actions:
+        for a in report.transient_restoration_actions:
+            lines.append(
+                f"- Stem transient restoration [{a.stem_name}]: {a.action_type}, "
+                f"gain={a.gain_db:+.2f} dB (requested {a.requested_gain_db:+.2f} dB), "
+                f"onset peak {a.onset_peak_before:.4f} -> {a.onset_peak_after:.4f}, "
+                f"severity={a.severity:.3f} ({a.reason})"
+            )
+
+    if report.harshness_control_actions:
+        for a in report.harshness_control_actions:
+            lines.append(
+                f"- Stem harshness control [{a.stem_name}]: {a.action_type}, "
+                f"gain={a.gain_db:+.2f} dB, band={a.band_hz[0]:.0f}-{a.band_hz[1]:.0f} Hz, "
+                f"severity={a.severity:.3f} ({a.reason})"
+            )
+
+    if report.stereo_imaging_actions:
+        for a in report.stereo_imaging_actions:
+            lines.append(
+                f"- Stem stereo imaging [{a.stem_name}]: {a.action_type}, "
+                f"width {a.width_before:.3f} -> {a.width_after:.3f}, "
+                f"correlation={a.correlation:.3f}, gain={a.gain_db:+.2f} dB ({a.reason})"
+            )
+
+    if report.bus_glue_actions:
+        for a in report.bus_glue_actions:
+            lines.append(
+                f"- Final bus glue [{a.stem_name}]: {a.action_type}, "
+                f"gain={a.gain_db:+.2f} dB, peak {a.before_peak:.4f} -> {a.after_peak:.4f} ({a.reason})"
+            )
+
     s = report.solver
     lines.append(
         f"- Loudness/limiting: target {_fmt(s['target_lufs'])} LUFS, achieved "

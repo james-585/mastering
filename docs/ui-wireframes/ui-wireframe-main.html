@@ -1,0 +1,984 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Suno Mastering Console</title>
+  <style>
+    :root {
+      --bg: #0a1015;
+      --bg-2: #0d141a;
+      --panel: #121a21;
+      --panel-2: #19242e;
+      --panel-3: #0e1419;
+      --line: rgba(215, 198, 166, 0.18);
+      --line-soft: rgba(215, 198, 166, 0.08);
+      --text: #edf4fa;
+      --muted: #9aa8b8;
+      --gold: #d3a55d;
+      --gold-soft: #f3d79d;
+      --cyan: #6ed8ea;
+      --magenta: #c18af1;
+      --green: #8be7be;
+      --shadow: 0 24px 70px rgba(0,0,0,.7);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background:
+        radial-gradient(circle at top left, rgba(211,165,93,0.12), transparent 18%),
+        radial-gradient(circle at bottom right, rgba(110,216,234,0.08), transparent 18%),
+        linear-gradient(180deg, #060c10 0%, #0b1117 100%);
+      color: var(--text);
+      font-family: "Segoe UI", Inter, sans-serif;
+    }
+
+    body {
+      padding: 18px;
+    }
+
+    .console {
+      max-width: 1500px;
+      margin: 0 auto;
+      background: linear-gradient(180deg, rgba(16,22,28,.98), rgba(11,17,23,.98));
+      border: 1px solid rgba(236, 204, 159, 0.18);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+
+    .topbar {
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px 0 16px;
+      border-bottom: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(19,24,30,.96), rgba(13,18,23,.96));
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 11px;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: var(--gold-soft);
+      font-weight: 700;
+    }
+
+    .brand-mark {
+      width: 18px;
+      height: 18px;
+      border-radius: 4px;
+      background: linear-gradient(135deg, #f4d99d, var(--gold));
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.42);
+    }
+
+    .topbar-tools {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .tool {
+      width: 18px;
+      height: 18px;
+      border-radius: 4px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.02);
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: 1.76fr 0.74fr;
+      min-height: 900px;
+    }
+
+    .main-panel {
+      padding: 14px 16px 16px;
+      background: rgba(15, 20, 26, 0.8);
+      border-right: 1px solid var(--line);
+    }
+
+    .header-strip {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 10px;
+      padding: 0 4px;
+    }
+
+    .crumbs {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+
+    .crumb {
+      padding: 6px 8px;
+      border: 1px solid var(--line-soft);
+      border-radius: 4px;
+      background: rgba(255,255,255,.01);
+    }
+
+    .crumb.active {
+      background: rgba(255,255,255,.025);
+      border-color: var(--line);
+      color: var(--text);
+    }
+
+    .file-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 12px;
+      margin-bottom: 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: linear-gradient(180deg, rgba(24,29,35,.9), rgba(18,24,31,.94));
+    }
+
+    .file-meta-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .file-icon {
+      width: 18px;
+      height: 18px;
+      border-radius: 4px;
+      background: rgba(255,255,255,.04);
+      border: 1px solid var(--line);
+      position: relative;
+    }
+
+    .file-icon::before {
+      content: "";
+      position: absolute;
+      inset: 4px 5px 4px 5px;
+      border: 1px solid rgba(255,255,255,.18);
+      border-top-width: 0;
+    }
+
+    .file-name {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-size: 13px;
+      color: var(--text);
+    }
+
+    .file-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .check-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 12px rgba(139,231,190,.8);
+    }
+
+    .status-banner {
+      margin-bottom: 16px;
+      padding: 12px 14px 10px;
+      border: 1px solid rgba(110, 216, 234, 0.28);
+      border-radius: 10px;
+      background: linear-gradient(180deg, rgba(15, 28, 33, 0.94), rgba(10, 17, 21, 0.96));
+      box-shadow: inset 0 0 0 1px rgba(110, 216, 234, 0.06);
+    }
+
+    .status-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+    }
+
+    .running-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 9px;
+      border-radius: 999px;
+      border: 1px solid rgba(110, 216, 234, 0.22);
+      background: rgba(110, 216, 234, 0.08);
+      color: var(--cyan);
+      font-size: 10px;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+
+    .pulse {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--cyan);
+      box-shadow: 0 0 12px rgba(110,216,234,.8);
+      animation: pulse 1.2s infinite ease-in-out;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(0.9); opacity: .75; }
+      50% { transform: scale(1.2); opacity: 1; }
+    }
+
+    .status-phase {
+      color: var(--gold-soft);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .status-copy {
+      margin-bottom: 10px;
+      color: var(--text);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .progress-track {
+      position: relative;
+      width: 100%;
+      height: 10px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.06);
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 32%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--cyan), var(--gold));
+      box-shadow: 0 0 18px rgba(110,216,234,.5);
+    }
+
+    .status-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-top: 8px;
+      font-size: 10px;
+      color: var(--muted);
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      flex-wrap: wrap;
+    }
+
+    .ref-select {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      min-width: 260px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: rgba(255,255,255,.02);
+      color: var(--text);
+      font-size: 12px;
+    }
+
+    .ref-select .label {
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .12em;
+      font-size: 10px;
+      white-space: nowrap;
+    }
+
+    .select-box {
+      flex: 1;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      padding: 0 6px 0 0;
+      color: var(--text);
+    }
+
+    .panel-title-main {
+      margin: 18px 0 10px;
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .22em;
+    }
+
+    .graph-panel {
+      position: relative;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: linear-gradient(180deg, rgba(20,29,35,.95), rgba(11,17,22,.92));
+      padding: 16px 14px 8px;
+      overflow: hidden;
+    }
+
+    .graph-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .12em;
+      margin-bottom: 12px;
+    }
+
+    .legend {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 10px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--muted);
+    }
+
+    .legend-swatch {
+      width: 14px;
+      height: 3px;
+      border-radius: 99px;
+    }
+
+    .legend-swatch.cyan { background: var(--cyan); }
+    .legend-swatch.magenta { background: var(--magenta); }
+
+    .chart-wrap {
+      position: relative;
+      height: 290px;
+      border-radius: 8px;
+      background: radial-gradient(circle at center, rgba(110,216,234,.05), transparent 55%);
+    }
+
+    .chart-svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .range {
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 18px;
+      width: 42px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      color: rgba(154,168,184,.9);
+      font-size: 10px;
+      padding-left: 4px;
+      padding-top: 6px;
+    }
+
+    .axis {
+      position: absolute;
+      left: 14px;
+      right: 8px;
+      bottom: 6px;
+      display: flex;
+      justify-content: space-between;
+      color: rgba(154,168,184,.9);
+      font-size: 10px;
+      letter-spacing: .05em;
+    }
+
+    .band-controls {
+      margin-top: 18px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .mini-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px 10px 8px;
+      background: linear-gradient(180deg, rgba(24,29,35,.9), rgba(16,21,27,.96));
+    }
+
+    .mini-card .heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--muted);
+      font-size: 10px;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    .mini-card .pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 6px;
+      border-radius: 999px;
+      background: rgba(211,165,93,.12);
+      border: 1px solid rgba(211,165,93,.25);
+      color: var(--gold-soft);
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .bars {
+      display: grid;
+      gap: 8px;
+    }
+
+    .bar-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .bar-row .label {
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    .track {
+      position: relative;
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.04);
+      overflow: hidden;
+    }
+
+    .track > span {
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--gold), #f3ddac);
+    }
+
+    .bars.small .bar-row {
+      grid-template-columns: .8fr 1.3fr .4fr;
+    }
+
+    .processor-wrap {
+      margin-top: 18px;
+      border-top: 1px solid var(--line);
+      padding-top: 12px;
+    }
+
+    .processor-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: .22em;
+      text-transform: uppercase;
+    }
+
+    .processor-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .step {
+      min-height: 120px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(25,30,35,.92), rgba(16,21,27,.96));
+      position: relative;
+    }
+
+    .step .num {
+      display: inline-flex;
+      width: 24px;
+      height: 24px;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      border: 1px solid var(--line);
+      color: var(--gold-soft);
+      font-size: 11px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      background: rgba(211,165,93,.06);
+    }
+
+    .step h4 {
+      margin: 0 0 6px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .step p {
+      margin: 0;
+      font-size: 11px;
+      line-height: 1.45;
+      color: var(--muted);
+    }
+
+    .step.active {
+      border-color: rgba(211,165,93,.38);
+      box-shadow: inset 0 0 0 1px rgba(211,165,93,.08);
+    }
+
+    .sidebar {
+      background: linear-gradient(180deg, rgba(18,24,30,.96), rgba(11,17,23,.98));
+      padding: 12px 12px 14px;
+    }
+
+    .side-panel {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: linear-gradient(180deg, rgba(20,26,31,.96), rgba(12,17,22,.96));
+      padding: 14px 12px;
+    }
+
+    .metrics-title {
+      font-size: 10px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .22em;
+      margin-bottom: 12px;
+    }
+
+    .meter-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .meter {
+      display: grid;
+      justify-items: center;
+      gap: 8px;
+      padding: 12px 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: rgba(255,255,255,.01);
+    }
+
+    .gauge {
+      width: 84px;
+      height: 84px;
+      position: relative;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+    }
+
+    .gauge::before {
+      content: "";
+      position: absolute;
+      inset: 12px;
+      border-radius: 50%;
+      background: #111b22;
+      border: 1px solid rgba(255,255,255,.04);
+    }
+
+    .gauge-value {
+      position: relative;
+      z-index: 1;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .meter small {
+      font-size: 10px;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .rationale {
+      margin-top: 16px;
+      padding-top: 14px;
+      border-top: 1px solid var(--line);
+    }
+
+    .rationale-head {
+      font-size: 10px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .18em;
+      margin-bottom: 8px;
+    }
+
+    .rationale-copy {
+      color: var(--text);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .logs-box {
+      margin-top: 16px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: rgba(255,255,255,.01);
+      padding: 12px;
+    }
+
+    .logs-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      color: var(--muted);
+      font-size: 10px;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .log-list {
+      display: grid;
+      gap: 8px;
+      font-size: 11px;
+      line-height: 1.5;
+      color: var(--muted);
+    }
+
+    .log-line {
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    .log-line:last-child { border-bottom: none; }
+
+    @media (max-width: 1100px) {
+      .workspace { grid-template-columns: 1fr; }
+      .sidebar { border-top: 1px solid var(--line); }
+      .processor-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    }
+
+    @media (max-width: 760px) {
+      .band-controls { grid-template-columns: 1fr; }
+      .meter-grid { grid-template-columns: 1fr; }
+      .topbar { padding-right: 12px; }
+      .brand { letter-spacing: .08em; }
+    }
+  </style>
+</head>
+<body>
+  <div class="console">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark"></span>
+        <span>Mastering Console</span>
+      </div>
+      <div class="topbar-tools">
+        <div class="tool"></div>
+        <div class="tool"></div>
+      </div>
+    </header>
+
+    <div class="workspace">
+      <main class="main-panel">
+        <div class="header-strip">
+          <div class="crumbs">
+            <div class="crumb">File</div>
+            <div class="crumb">Ingest</div>
+            <div class="crumb active">Batch mode</div>
+            <div class="crumb">Future</div>
+          </div>
+        </div>
+
+        <div class="file-card">
+          <div class="file-meta-left">
+            <div class="file-icon"></div>
+            <div>
+              <div class="file-name">Suno_Export_01.wav</div>
+              <div class="file-status"><span class="check-dot"></span> Verified input SR 44.1kHz, 32-bit, 64-bit</div>
+            </div>
+          </div>
+
+          <div class="ref-select">
+            <span class="label">Reference Target</span>
+            <div class="select-box">
+              <span>Modern Max</span>
+              <span>▾</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="status-banner" aria-live="polite">
+          <div class="status-top">
+            <div class="running-pill"><span class="pulse"></span> Processing</div>
+            <div class="status-phase">Current step: Ingest &amp; Validate</div>
+          </div>
+          <div class="status-copy">Loading the source file, validating format and metadata, and confirming the input is safe before any mastering work begins.</div>
+          <div class="progress-track" aria-label="Processing progress">
+            <div class="progress-fill" style="width: 10%"></div>
+          </div>
+          <div class="status-meta">
+            <span>Stage 1 of 10</span>
+            <span>Estimated time: 12 sec</span>
+          </div>
+        </div>
+
+        <div class="panel-title-main">Dual spectrum and correlation visualizer</div>
+
+        <div class="graph-panel">
+          <div class="graph-header">
+            <div class="legend">
+              <div class="legend-item"><span class="legend-swatch magenta"></span> Cyan</div>
+              <div class="legend-item"><span class="legend-swatch cyan"></span> Transparent Violet</div>
+            </div>
+            <div>Master Output</div>
+          </div>
+
+          <div class="chart-wrap">
+            <div class="range">
+              <span>-10 dB</span>
+              <span>-18 dB</span>
+              <span>-26 dB</span>
+              <span>-34 dB</span>
+              <span>-42 dB</span>
+              <span>-50 dB</span>
+            </div>
+
+            <svg class="chart-svg" viewBox="0 0 900 290" preserveAspectRatio="none" aria-label="Spectrum graph">
+              <defs>
+                <linearGradient id="violetFill" x1="0" x2="0" y1="0" y2="1">
+                  <stop offset="0%" stop-color="rgba(201,142,240,0.45)" />
+                  <stop offset="100%" stop-color="rgba(201,142,240,0.04)" />
+                </linearGradient>
+              </defs>
+              <g opacity=".35" stroke="rgba(255,255,255,.08)" stroke-width="1">
+                <line x1="0" x2="900" y1="20" y2="20" />
+                <line x1="0" x2="900" y1="70" y2="70" />
+                <line x1="0" x2="900" y1="120" y2="120" />
+                <line x1="0" x2="900" y1="170" y2="170" />
+                <line x1="0" x2="900" y1="220" y2="220" />
+                <line x1="0" x2="900" y1="270" y2="270" />
+              </g>
+
+              <path d="M0,172 C110,138 155,145 180,130 C240,90 290,72 325,84 C370,98 400,122 470,116 C520,111 560,84 615,80 C678,76 708,96 770,100 C824,103 870,76 900,56 L900,260 L0,260 Z" fill="url(#violetFill)" opacity=".8"/>
+              <path d="M0,175 C98,150 138,136 186,126 C226,118 248,90 294,90 C334,90 369,111 418,108 C468,105 512,78 564,76 C612,74 650,98 704,102 C761,107 824,88 900,58" fill="none" stroke="#6bd1db" stroke-width="2" opacity=".95"/>
+              <path d="M0,186 C90,160 128,145 170,138 C220,129 268,95 310,95 C350,95 390,125 432,115 C486,102 542,74 602,80 C660,86 700,112 760,110 C830,108 866,94 900,80" fill="none" stroke="#c98ef0" stroke-width="2.5" opacity=".9"/>
+            </svg>
+
+            <div class="axis">
+              <span>20</span>
+              <span>50</span>
+              <span>100</span>
+              <span>200</span>
+              <span>500</span>
+              <span>1k</span>
+              <span>2k</span>
+              <span>5k</span>
+              <span>10k</span>
+              <span>20k</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="band-controls">
+          <div class="mini-card">
+            <div class="heading">
+              <span>7-band M/S analyzer</span>
+              <span class="pill">Sub</span>
+            </div>
+            <div class="bars small">
+              <div class="bar-row">
+                <div class="label">20-60 Hz</div>
+                <div class="track"><span style="width: 42%"></span></div>
+                <div class="label">+1</div>
+              </div>
+              <div class="bar-row">
+                <div class="label">60-80 Hz</div>
+                <div class="track"><span style="width: 52%"></span></div>
+                <div class="label">+2</div>
+              </div>
+              <div class="bar-row">
+                <div class="label">80-160 Hz</div>
+                <div class="track"><span style="width: 48%"></span></div>
+                <div class="label">+2</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="mini-card">
+            <div class="heading">
+              <span>Stereo width</span>
+              <span class="pill">Phase</span>
+            </div>
+            <div class="bars">
+              <div class="bar-row">
+                <div class="label">M/S</div>
+                <div class="track"><span style="width: 68%"></span></div>
+                <div class="label">+0.7</div>
+              </div>
+              <div class="bar-row">
+                <div class="label">Phase</div>
+                <div class="track"><span style="width: 54%"></span></div>
+                <div class="label">0.5</div>
+              </div>
+              <div class="bar-row">
+                <div class="label">Stereo</div>
+                <div class="track"><span style="width: 80%"></span></div>
+                <div class="label">1.0</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="processor-wrap">
+          <div class="processor-header">
+            <span>Processor Strip</span>
+            <span class="pill">Ready</span>
+          </div>
+
+          <div class="processor-grid">
+            <div class="step active">
+              <div class="num">01</div>
+              <h4>Ingest</h4>
+              <p>Validate source and metadata.</p>
+            </div>
+            <div class="step">
+              <div class="num">02</div>
+              <h4>Analysis</h4>
+              <p>Measure pre-master audio and artifact flags.</p>
+            </div>
+            <div class="step">
+              <div class="num">03</div>
+              <h4>Artifact Gate</h4>
+              <p>Review only; no repair for missing content.</p>
+            </div>
+            <div class="step">
+              <div class="num">04</div>
+              <h4>Resample</h4>
+              <p>Adjust output rate if needed.</p>
+            </div>
+            <div class="step">
+              <div class="num">05</div>
+              <h4>Corrective EQ</h4>
+              <p>Targets-based tonal correction.</p>
+            </div>
+            <div class="step">
+              <div class="num">06</div>
+              <h4>Stereo Width</h4>
+              <p>Per-band and broadband correction.</p>
+            </div>
+            <div class="step">
+              <div class="num">07</div>
+              <h4>Loudness</h4>
+              <p>Targeted limiting and gain shaping.</p>
+            </div>
+            <div class="step">
+              <div class="num">08</div>
+              <h4>Dither</h4>
+              <p>Bit-depth conversion and dither.</p>
+            </div>
+            <div class="step">
+              <div class="num">09</div>
+              <h4>Export</h4>
+              <p>Write final WAV output.</p>
+            </div>
+            <div class="step">
+              <div class="num">10</div>
+              <h4>Analysis</h4>
+              <p>Measure post-master output.</p>
+            </div>
+            <div class="step">
+              <div class="num">11</div>
+              <h4>Report</h4>
+              <p>Generate audit and validation report.</p>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <aside class="sidebar">
+        <div class="side-panel">
+          <div class="metrics-title">Metrics &amp; solver console</div>
+
+          <div class="meter-grid">
+            <div class="meter">
+              <div class="gauge" style="background: conic-gradient(var(--gold) 0deg 240deg, rgba(255,255,255,.06) 240deg 360deg);">
+                <span class="gauge-value">-13.5</span>
+              </div>
+              <small>Integrated LUFS</small>
+            </div>
+            <div class="meter">
+              <div class="gauge" style="background: conic-gradient(var(--gold) 0deg 215deg, rgba(255,255,255,.06) 215deg 360deg);">
+                <span class="gauge-value">8.2</span>
+              </div>
+              <small>DR</small>
+            </div>
+          </div>
+
+          <div class="meter-grid">
+            <div class="meter">
+              <div class="gauge" style="background: conic-gradient(var(--cyan) 0deg 220deg, rgba(255,255,255,.06) 220deg 360deg);">
+                <span class="gauge-value">-1.0</span>
+              </div>
+              <small>True Peak</small>
+            </div>
+            <div class="meter">
+              <div class="gauge" style="background: conic-gradient(var(--cyan) 0deg 195deg, rgba(255,255,255,.06) 195deg 360deg);">
+                <span class="gauge-value">-1.24</span>
+              </div>
+              <small>Sample Peak</small>
+            </div>
+          </div>
+
+          <div class="rationale">
+            <div class="rationale-head">Solver rationale</div>
+            <div class="rationale-copy">Target -13.5 LUFS achieved within DR constraint in 6 iterations.</div>
+          </div>
+        </div>
+
+        <div class="logs-box">
+          <div class="logs-head">
+            <span>Corrective Actions</span>
+            <span>Logs</span>
+          </div>
+
+          <div class="log-list">
+            <div class="log-line">2023-03-15 13:55 — Artifact review: whistle/haze flagged for audit.</div>
+            <div class="log-line">2023-03-15 13:55 — No transient repair or recovered content is claimed.</div>
+            <div class="log-line">2023-03-15 13:55 — De-mud file FRED... Applied -1.8 dB.</div>
+            <div class="log-line">2023-03-15 13:55 — Gain reduction +2.8 dB.</div>
+            <div class="log-line">2023-03-15 13:55 — True peak locked below -1 dBTP.</div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</body>
+</html>

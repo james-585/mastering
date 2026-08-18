@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.coverage
+coverage.xml
+
+# Editor / OS
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Secrets
+.env
+
+# Build and generated output
+build/
+build-ninja/
+build-vs2026/
+*.log
+
+# Local scratch and runtime output
+/tmp/
+tmp/
+tmp_*/
+tmp_e2e_run/
+tmp_ref_report/
+test_runs/
+
+# Project-specific generated artifacts
+*.wav
+*.mp3
+*.flac
+*.aiff
+*.aif

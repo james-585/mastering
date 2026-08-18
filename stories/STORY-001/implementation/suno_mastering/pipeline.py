@@ -36,13 +36,14 @@ _FOR_STORY_11_17 = [
     _REPO_ROOT / "stories" / "STORY-013" / "implementation",
     _REPO_ROOT / "stories" / "STORY-014" / "implementation",
     _REPO_ROOT / "stories" / "STORY-015" / "implementation",
+    _REPO_ROOT / "stories" / "STORY-025" / "implementation",
 ]
 for _story_path in _FOR_STORY_11_17:
     if str(_story_path) not in sys.path:
         sys.path.insert(0, str(_story_path))
 
 from final_bus_glue import apply_final_bus_glue
-from final_quality_review import evaluate_quality_review
+from grounded_quality_review import evaluate_quality_review
 from harshness_control import apply_stem_harshness_control
 from stem_stereo_imaging import apply_stem_stereo_imaging
 from transient_restoration import apply_stem_transient_restoration
@@ -451,6 +452,13 @@ def master(
             f"The original input must never be modified."
         )
 
+    # STORY-025: grounded quality review runs after before/after measurement so
+    # post_ingest_result is available; placed before build_report so the result
+    # can be embedded in the report and MasteringResult together.
+    quality_review = evaluate_quality_review(
+        ingest_result.audio, post_ingest_result.audio, ingest_result.sample_rate
+    )
+
     # --- [11] Report generation ---
     _announce_story_step(6, "Ready for Release", "report generation", reporter=reporter)
     report = report_builder.build_report(
@@ -468,9 +476,14 @@ def master(
         collapse_swish_actions=collapse_swish_actions,
         shape_transients_actions=transient_actions,
         adaptive_harshness_actions=adaptive_harshness_actions,
+        transient_restoration_actions=story_11_17_actions.get("transient_restoration"),
+        harshness_control_actions=story_11_17_actions.get("harshness_control"),
+        stereo_imaging_actions=story_11_17_actions.get("stereo_imaging"),
+        bus_glue_actions=story_11_17_actions.get("bus_glue"),
         solver_outcome=solver_outcome,
         integrity_verified=integrity_verified,
         stem_runtime=getattr(stem_result, "runtime_metadata", None),
+        quality_review=quality_review,
     )
 
     # Built manually (not via dataclasses.asdict) to avoid deep-copying the
@@ -495,10 +508,6 @@ def master(
     if config.shape_transients.enabled:
         actions["shape_transients"] = transient_actions
     actions.update(story_11_17_actions)
-
-    # STORY-015: the final quality-review gate is now part of the active product path.
-    # This is the actual pass/refine/reject decision the user-facing product relies on.
-    quality_review = evaluate_quality_review(ingest_result.audio, post_ingest_result.audio)
 
     return MasteringResult(
         output_path=output_path,

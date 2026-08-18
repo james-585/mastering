@@ -34,7 +34,12 @@ class ReportData:
     collapse_swish_actions: list = field(default_factory=list)
     shape_transients_actions: list = field(default_factory=list)
     adaptive_harshness_actions: list = field(default_factory=list)
+    transient_restoration_actions: list = field(default_factory=list)
+    harshness_control_actions: list = field(default_factory=list)
+    stereo_imaging_actions: list = field(default_factory=list)
+    bus_glue_actions: list = field(default_factory=list)
     stem_runtime: Optional[dict] = None
+    quality_review: object | None = None
 
 
 def _config_summary(config) -> dict:
@@ -76,9 +81,14 @@ def build_report(
     collapse_swish_actions: Optional[list] = None,
     shape_transients_actions: Optional[list] = None,
     adaptive_harshness_actions: Optional[list] = None,
+    transient_restoration_actions: Optional[list] = None,
+    harshness_control_actions: Optional[list] = None,
+    stereo_imaging_actions: Optional[list] = None,
+    bus_glue_actions: Optional[list] = None,
     solver_outcome,
     integrity_verified: bool,
     stem_runtime: Optional[dict] = None,
+    quality_review: object | None = None,
 ) -> ReportData:
     solver_dict = {
         "target_lufs": solver_outcome.target_lufs,
@@ -115,5 +125,10 @@ def build_report(
         collapse_swish_actions=list(collapse_swish_actions or []),
         shape_transients_actions=list(shape_transients_actions or []),
         adaptive_harshness_actions=list(adaptive_harshness_actions or []),
+        transient_restoration_actions=list(transient_restoration_actions or []),
+        harshness_control_actions=list(harshness_control_actions or []),
+        stereo_imaging_actions=list(stereo_imaging_actions or []),
+        bus_glue_actions=list(bus_glue_actions or []),
         stem_runtime=stem_runtime,
+        quality_review=quality_review,
     )
