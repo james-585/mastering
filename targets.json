@@ -1,0 +1,190 @@
+{
+  "version": "1.0",
+  "provenance": {
+    "contributing_tracks": [
+      "Chemical Brothers — Live Again",
+      "GusGus — Over (Arabian Horse)",
+      "Black Flute (Remastered)"
+    ],
+    "excluded_tracks": [
+      "Leftfield_-_Melt_Audio",
+      "Wavy_Gravy"
+    ],
+    "exclusion_reason": "See STORY-006 requirements: Leftfield and Wavy Gravy excluded by design"
+  },
+  "hard_targets": {
+    "integrated_lufs": {
+      "value": -13.5,
+      "tolerance_lu": 0.5
+    },
+    "true_peak_dbtp": {
+      "ceiling": -1.0
+    },
+    "dynamic_range_db": {
+      "range_min": 6.598619291919405,
+      "range_max": 8.645555938629412,
+      "target_median": 8.263389567762784
+    }
+  },
+  "spectral_bands": {
+    "sub": {
+      "freq_hz": [
+        20,
+        60
+      ],
+      "classification": "soft",
+      "range_db_re_mid": {
+        "min": -3.7467348314894915,
+        "max": 1.944311988720667
+      },
+      "median_db_re_mid": -3.0850478658178693,
+      "correction_cap_db": 2.0
+    },
+    "low": {
+      "freq_hz": [
+        60,
+        120
+      ],
+      "classification": "informational",
+      "range_db_re_mid": {
+        "min": 0.47095491378668275,
+        "max": 8.61715851624162
+      },
+      "median_db_re_mid": 4.335004310027819
+    },
+    "low_mid": {
+      "freq_hz": [
+        120,
+        500
+      ],
+      "classification": "soft",
+      "range_db_re_mid": {
+        "min": -0.14519602938085469,
+        "max": 8.52243176025526
+      },
+      "median_db_re_mid": 3.393847759668483,
+      "correction_cap_db": 2.0
+    },
+    "mid": {
+      "freq_hz": [
+        500,
+        2000
+      ],
+      "classification": "informational",
+      "range_db_re_mid": {
+        "min": 0.0,
+        "max": 0.0
+      },
+      "median_db_re_mid": 0.0
+    },
+    "high_mid": {
+      "freq_hz": [
+        2000,
+        5000
+      ],
+      "classification": "informational",
+      "range_db_re_mid": {
+        "min": -13.40751876691465,
+        "max": -1.243459886663965
+      },
+      "median_db_re_mid": -6.713775137701744
+    },
+    "high": {
+      "freq_hz": [
+        5000,
+        10000
+      ],
+      "classification": "informational",
+      "range_db_re_mid": {
+        "min": -17.061542889061187,
+        "max": -4.060262734976708
+      },
+      "median_db_re_mid": -9.772147426441874
+    },
+    "air": {
+      "freq_hz": [
+        10000,
+        24000
+      ],
+      "classification": "informational",
+      "range_db_re_mid": {
+        "min": -20.053394462404178,
+        "max": -11.443548275415676
+      },
+      "median_db_re_mid": -16.014543111722297
+    }
+  },
+  "de_mud": {
+    "flag_threshold_db_above_mid": 4.0,
+    "correction_aim_point_db": 2.0,
+    "applies_to_band": "low_mid"
+  },
+  "stereo_width": {
+    "sub": {
+      "min": 0.001253139414907456,
+      "max": 0.04035973781824864,
+      "median": 0.009161712507556041,
+      "near_mono_threshold": 0.15,
+      "correction_aim_point": 0.15,
+      "correction_floor": 0.1,
+      "max_correction_step": 0.15
+    },
+    "low": {
+      "min": 0.0007816444129356004,
+      "max": 0.14691007452307536,
+      "median": 0.016501947051638544,
+      "near_mono_threshold": 0.15,
+      "correction_aim_point": 0.15,
+      "correction_floor": 0.1,
+      "max_correction_step": 0.15
+    },
+    "low_mid": {
+      "min": 0.1734975692432823,
+      "max": 0.4158363525380845,
+      "median": 0.4084913778585548,
+      "near_mono_threshold": 0.15,
+      "correction_aim_point": 0.15,
+      "correction_floor": 0.1,
+      "max_correction_step": 0.15
+    },
+    "mid": {
+      "min": 0.4197762917244846,
+      "max": 0.6695946025607453,
+      "median": 0.4609799618242024,
+      "near_mono_threshold": 0.15,
+      "correction_aim_point": 0.15,
+      "correction_floor": 0.1,
+      "max_correction_step": 0.15
+    },
+    "high_mid": {
+      "min": 0.454781210956439,
+      "max": 0.6084600346691533,
+      "median": 0.5786862408653414,
+      "near_mono_threshold": 0.15,
+      "correction_aim_point": 0.15,
+      "correction_floor": 0.1,
+      "max_correction_step": 0.15
+    },
+    "high": {
+      "min": 0.12858644872435165,
+      "max": 0.6566312666749856,
+      "median": 0.16043617389748943,
+      "near_mono_threshold": 0.15,
+      "correction_aim_point": 0.15,
+      "correction_floor": 0.1,
+      "max_correction_step": 0.15
+    },
+    "air": {
+      "min": 0.10975913890197497,
+      "max": 0.12657563169568076,
+      "median": 0.12384373584646569,
+      "near_mono_threshold": 0.15,
+      "correction_aim_point": 0.15,
+      "correction_floor": 0.1,
+      "max_correction_step": 0.15
+    }
+  },
+  "metadata": {
+    "air_upper_edge_hz": 24000
+  }
+}

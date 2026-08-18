@@ -1,0 +1,36 @@
+[build-system]
+requires = [
+    "setuptools>=68",
+    "wheel",
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "suno-mastering"
+version = "0.1.0"
+description = "Stem-aware mastering workflow for Suno-generated audio"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "soundfile",
+]
+
+[tool.pytest.ini_options]
+pythonpath = [
+    ".",
+    "stories/STORY-001/implementation",
+    "stories/STORY-011/implementation",
+    "stories/STORY-012/implementation",
+    "stories/STORY-013/implementation",
+    "stories/STORY-014/implementation",
+    "stories/STORY-015/implementation",
+    "stories/STORY-016/implementation",
+    "stories/STORY-017/implementation",
+    "stories/STORY-018/implementation",
+    "stories/STORY-019/implementation",
+    "stories/STORY-020/implementation",
+    "stories/STORY-025/implementation",
+]
+markers = [
+    "slow: longer-running tests that exercise real Demucs/Torch inference; run as a dedicated NFR acceptance gate, not part of routine fast iteration.",
+]

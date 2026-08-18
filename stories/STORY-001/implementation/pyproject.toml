@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "suno-mastering"
+version = "0.1.0"
+description = "Automated streaming-ready mastering for Suno-generated WAV exports (STORY-001)."
+requires-python = ">=3.10"
+dependencies = [
+    "numpy==2.4.6",
+    "scipy==1.18.0",
+    "soundfile==0.14.0",
+    "soxr==1.1.0",
+    "pyloudnorm==0.2.0",
+    "mutagen==1.47.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["suno_mastering*"]
+
+[tool.setuptools.package-data]
+suno_mastering = ["reference/*.json"]
+
+[tool.pytest.ini_options]
+markers = [
+    "slow: longer-running pipeline-level tests (multi-minute synthetic fixtures)",
+    "isolated: session-position-sensitive NFR wall-clock budget tests (DEF-110) -- must be run in their own dedicated pytest invocation, never at the tail of a large combined-suite run. See architecture.md v3 Section 16 (STORY-002) and defects.md DEF-110.",
+    "ground_truth: STORY-003 ground-truth signal tests, analytically-derived expected values, selectable independently for the AC5/AC12 <30s runtime budget.",
+]
