@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 import numpy as np
+from scipy.signal import find_peaks
 
 from ..analysis.types import ArtifactDetectionResult
 from ..config import RepairWhistlesConfig
@@ -28,6 +29,14 @@ _STFT_FRAME_SIZE = 4096
 # below this has no effect, since every flag the detector ever emits
 # already clears it (architecture.md Section 6).
 _DETECTOR_PROMINENCE_FLOOR_DB = 6.0
+
+# Harmonic guard constants (architecture.md §6b.2).
+# _HARMONIC_GUARD_DELTA: tolerance in harmonic-number units.
+# Derived: delta >= N_MAX / (2 * Q_notch) = 10/240 ≈ 0.042; 0.08 satisfies.
+_HARMONIC_GUARD_DELTA = 0.08
+# Maximum harmonic order checked; flags whose harmonic ratio n > N_MAX are
+# not suppressed by the guard (see architecture.md §6b "Open risk" note).
+_HARMONIC_GUARD_N_MAX = 10
 
 
 @dataclass
@@ -45,6 +54,10 @@ class WhistleRepairFlagAction:
 class WhistleRepairSummary:
     frequencies_notched: list = field(default_factory=list)
     stage_ran: bool = False
+    harmonic_guard_suppressed: list = field(default_factory=list)
+    # Frequencies (Hz) suppressed by the harmonic guard; empty if guard fired on none.
+    harmonic_guard_suppressed_count: int = 0
+    # len(harmonic_guard_suppressed); present for operator convenience.
 
 
 def _to_dsp_input(audio: np.ndarray) -> np.ndarray:
@@ -108,6 +121,124 @@ def _flag_envelope(
     return envelope
 
 
+def _harmonic_guard_filter(
+    flags: list,
+    audio: np.ndarray,
+    sample_rate: int,
+) -> tuple[list, list]:
+    """Suppress a flag if the flagged frequency is harmonically related to a
+    strong spectral peak below it AND a sibling harmonic is independently
+    confirmed (architecture.md §6b.2 Steps 1-6).
+
+    Returns:
+        (forwarded_flags, suppressed_frequencies)
+        suppressed_frequencies: list of float Hz values suppressed by the guard.
+    """
+    if not flags:
+        return [], []
+
+    n_samples = audio.shape[0]
+    # Step 1: analysis window length (local var — depends on sample_rate).
+    # Bin width <= delta * f0_min / 2 where f0_min = 200 Hz (architecture.md §6b.2).
+    l_analysis = 1 << int(np.ceil(np.log2(sample_rate / 8.0)))
+    half = l_analysis // 2
+
+    freqs = np.fft.rfftfreq(l_analysis, d=1.0 / sample_rate)
+
+    forwarded: list = []
+    suppressed_frequencies: list = []
+
+    for flag in flags:
+        f_flagged = float(flag.details["frequency_hz"])
+        start_sample = int(round(flag.timestamp_start_s * sample_rate))
+        end_sample = int(round(flag.timestamp_end_s * sample_rate))
+        mid = (start_sample + end_sample) // 2
+
+        # Step 1: window centred on flag midpoint, clamped to buffer edges.
+        an_start = max(0, mid - half)
+        an_end = min(n_samples, an_start + l_analysis)
+        segment = audio[an_start:an_end]  # may be shorter than l_analysis near edges
+
+        # Step 2: channel-max magnitude spectrum (mono-safe).
+        if audio.ndim == 2:
+            channels = audio.shape[1]
+            spectrum = np.max(
+                np.stack(
+                    [np.abs(np.fft.rfft(segment[:, c], n=l_analysis))
+                     for c in range(channels)]
+                ),
+                axis=0,
+            )
+        else:
+            spectrum = np.abs(np.fft.rfft(segment, n=l_analysis))
+
+        # Step 3: log-magnitude with programme-level-relative floor.
+        eps_floor = spectrum.max() * 1e-6  # -120 dBFS re segment peak
+        log_spec = 20.0 * np.log10(spectrum + eps_floor)
+
+        # Step 4a: candidate fundamentals below flagged frequency.
+        flag_bin = int(round(f_flagged * l_analysis / sample_rate))
+        peak_idxs, _ = find_peaks(
+            log_spec[:flag_bin],
+            prominence=_DETECTOR_PROMINENCE_FLOOR_DB,
+        )
+
+        # Step 4b: full-spectrum peak set for sibling checks (once per flag).
+        all_peak_idxs, _ = find_peaks(
+            log_spec,
+            prominence=_DETECTOR_PROMINENCE_FLOOR_DB,
+        )
+        all_peak_freqs = freqs[all_peak_idxs]  # shape (K_all,)
+
+        # Step 5: harmonic ratio test + sibling confirmation.
+        suppress = False
+        for idx in peak_idxs:
+            f0 = freqs[idx]
+            if f0 <= 0.0:
+                continue
+            r = f_flagged / f0
+            n_nearest = int(round(r))
+            if 1 <= n_nearest <= _HARMONIC_GUARD_N_MAX:
+                if abs(r - n_nearest) <= _HARMONIC_GUARD_DELTA:
+                    # Harmonic ratio matched. Require sibling confirmation.
+                    # Four sibling targets: ±f0 (adjacent) and ±2*f0 (widened
+                    # for odd-harmonic-only timbres — architecture.md §6b.2 rev 6).
+                    sibling_confirmed = False
+                    for sibling_f in [
+                        f_flagged + f0,
+                        f_flagged - f0,
+                        f_flagged + 2.0 * f0,
+                        f_flagged - 2.0 * f0,
+                    ]:
+                        if sibling_f <= 0.0 or sibling_f >= sample_rate / 2.0:
+                            continue  # outside Nyquist range
+                        # Self-confirming guard: sibling indistinguishable from
+                        # the candidate fundamental provides no independent evidence.
+                        # Fires at n_nearest=2 (f_flagged-f0=f0) and
+                        # n_nearest=3 (f_flagged-2*f0=f0).
+                        if abs(sibling_f - f0) <= _HARMONIC_GUARD_DELTA * f0:
+                            continue
+                        # Accept sibling if it clears the prominence gate
+                        # (frequency-domain match within delta*f0 Hz).
+                        if np.any(
+                            np.abs(all_peak_freqs - sibling_f)
+                            <= _HARMONIC_GUARD_DELTA * f0
+                        ):
+                            sibling_confirmed = True
+                            break
+                    if sibling_confirmed:
+                        suppress = True
+                        break
+
+        # Step 6: route the flag.
+        if suppress:
+            suppressed_frequencies.append(f_flagged)
+        else:
+            forwarded.append(flag)
+
+    return forwarded, suppressed_frequencies
+
+
 def apply_whistle_repair(
     audio: np.ndarray,
     sample_rate: int,
@@ -159,9 +290,20 @@ def apply_whistle_repair(
                 continue
             matching_flags.append(flag)
 
-    target_frequencies = [float(flag.details["frequency_hz"]) for flag in matching_flags]
+    forwarded_flags, guard_suppressed = _harmonic_guard_filter(
+        matching_flags, audio, sample_rate
+    )
+
+    target_frequencies = [float(flag.details["frequency_hz"]) for flag in forwarded_flags]
     if not target_frequencies:
-        return audio.copy(), [WhistleRepairSummary(frequencies_notched=[], stage_ran=True)]
+        return audio.copy(), [
+            WhistleRepairSummary(
+                frequencies_notched=[],
+                stage_ran=True,
+                harmonic_guard_suppressed=guard_suppressed,
+                harmonic_guard_suppressed_count=len(guard_suppressed),
+            )
+        ]
 
     actions: list = []
     output = audio.copy()
@@ -179,7 +321,7 @@ def apply_whistle_repair(
         processed = audio.copy()
 
     envelope = np.zeros(n_samples, dtype=np.float64)
-    for flag in matching_flags:
+    for flag in forwarded_flags:
         flag_envelope = _flag_envelope(
             n_samples, sample_rate, flag.timestamp_start_s, flag.timestamp_end_s,
             config.crossfade_ms,
@@ -187,7 +329,7 @@ def apply_whistle_repair(
         envelope = np.maximum(envelope, flag_envelope)
 
     if suno_dsp is None:
-        for flag in matching_flags:
+        for flag in forwarded_flags:
             start_sample = max(0, min(n_samples, int(round(flag.timestamp_start_s * sample_rate))))
             end_sample = max(start_sample, min(n_samples, int(round(flag.timestamp_end_s * sample_rate))))
             if end_sample <= start_sample:
@@ -204,7 +346,7 @@ def apply_whistle_repair(
     else:
         output = output.copy()
 
-    for flag in matching_flags:
+    for flag in forwarded_flags:
         start_sample = max(0, min(n_samples, int(round(flag.timestamp_start_s * sample_rate))))
         end_sample = max(start_sample, min(n_samples, int(round(flag.timestamp_end_s * sample_rate))))
         orig_window = audio[start_sample:end_sample]
@@ -223,6 +365,11 @@ def apply_whistle_repair(
         )
 
     actions.append(
-        WhistleRepairSummary(frequencies_notched=target_frequencies, stage_ran=True)
+        WhistleRepairSummary(
+            frequencies_notched=target_frequencies,
+            stage_ran=True,
+            harmonic_guard_suppressed=guard_suppressed,
+            harmonic_guard_suppressed_count=len(guard_suppressed),
+        )
     )
     return output, actions
