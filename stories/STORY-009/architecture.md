@@ -498,11 +498,10 @@ to be raised if the guard fires on noise peaks.
 
 *Step 4b — Full-spectrum peak set for sibling confirmation.*
 
-The sibling confirmation step (Step 5b below) checks for spectral energy
-at `f_flagged ± f0`, which may fall above `f_flagged`. To avoid a second
-`find_peaks` call per candidate f0, compute all prominent peaks in the
-full `log_spec` once per flag and cache the result as an array of peak
-frequencies:
+The sibling confirmation step (Step 5) checks for spectral energy at up to
+four sibling targets per candidate f0. To avoid repeated `find_peaks`
+calls, compute all prominent peaks in the full `log_spec` once per flag
+and cache the result as an array of peak frequencies:
 
 ```python
 all_peak_idxs, _ = find_peaks(
@@ -535,13 +534,26 @@ for idx in peak_idxs:
         if abs(r - n_nearest) <= _HARMONIC_GUARD_DELTA:
             # Harmonic ratio matched. Require sibling confirmation before suppressing
             # to prevent K-inflation (see §6b.2 discrimination argument below).
+            # Four sibling targets: n_nearest ± 1 (adjacent) and n_nearest ± 2 (widened).
+            # The ±2 targets cover odd-harmonic-only timbres (square/pulse waves) where
+            # n±1 are even multiples and structurally absent, but n±2 are odd multiples
+            # and structurally present.
             sibling_confirmed = False
-            for sibling_f in [f_flagged + f0, f_flagged - f0]:
+            for sibling_f in [f_flagged + f0, f_flagged - f0,
+                               f_flagged + 2.0 * f0, f_flagged - 2.0 * f0]:
                 if sibling_f <= 0.0 or sibling_f >= sample_rate / 2.0:
                     continue   # out of Nyquist range; skip without failing
-                # Accept if any prominent peak is within delta*f0 Hz of this sibling.
-                # delta*f0 Hz is the same window the harmonic test uses at fundamental f0 —
-                # equivalent to |f_peak/f0 - (n_nearest±1)| <= delta, consistent by construction.
+                if abs(sibling_f - f0) <= _HARMONIC_GUARD_DELTA * f0:
+                    continue   # self-confirming guard: sibling target is indistinguishable
+                               # from the candidate fundamental and provides no independent
+                               # evidence of a harmonic series.
+                               # Fires at n_nearest=2: f_flagged - f0 = f0 exactly.
+                               # Fires at n_nearest=3: f_flagged - 2*f0 = f0 exactly.
+                # Contract: sibling_f is accepted if it clears the same local-prominence
+                # gate used for candidate peaks (_DETECTOR_PROMINENCE_FLOOR_DB dB).
+                # Implementation may use the all_peak_freqs array (frequency-domain match
+                # within delta*f0 Hz) or a direct point-check at the sibling bin in
+                # log_spec — both satisfy this contract.
                 if np.any(np.abs(all_peak_freqs - sibling_f) <= _HARMONIC_GUARD_DELTA * f0):
                     sibling_confirmed = True
                     break
@@ -574,13 +586,6 @@ and the flag forwarded to the notch stage:
    flagged frequency) from coincidental tonal peaks that happen to have a
    harmonic ratio to the flag but no harmonic neighbourhood.
 
-**However**: a flag from a musical instrument or synth patch whose
-fundamental the guard identifies via a harmonic ratio match, but whose
-harmonic series contains energy only at odd harmonics (e.g. a square
-wave), will also fall through via case 2 — because the adjacent siblings
-`(n±1)·f0` are even harmonics and are absent from the series. This is an
-open risk and is described in the discrimination argument below.
-
 **Derivation of `_HARMONIC_GUARD_DELTA` and `_HARMONIC_GUARD_N_MAX`.**
 
 Two constraints bound the pair:
@@ -600,13 +605,12 @@ delta       >=  10 / 240  ≈  0.042
 ```
 
 *Discrimination — why harmonic ratio alone is insufficient, and why
-sibling confirmation restores it for full-harmonic-series content.* The
-harmonic ratio test has coverage `2·delta` per harmonic interval for a
-single candidate fundamental (K = 1). **On dense club material,
-`find_peaks` with a 6 dB local-prominence gate returns K ≥ 15–30
-qualifying peaks per flag window.** At K = 20 candidates, the probability
-that the harmonic ratio test alone suppresses any frequency by coincidental
-harmonic alignment is:
+sibling confirmation restores it.* The harmonic ratio test has coverage
+`2·delta` per harmonic interval for a single candidate fundamental (K = 1).
+**On dense club material, `find_peaks` with a 6 dB local-prominence gate
+returns K ≥ 15–30 qualifying peaks per flag window.** At K = 20 candidates,
+the probability that the harmonic ratio test alone suppresses any frequency
+by coincidental harmonic alignment is:
 
 ```
 P(suppress by ratio alone | K = 20) = 1 − (1 − 2·delta)^K = 1 − (0.84)^20 ≈ 0.97
@@ -618,65 +622,42 @@ discriminate on dense material.
 
 **The sibling confirmation is the discriminating mechanism, not delta.**
 A genuine musical fundamental at f0 produces energy at integer multiples
-of f0 across its harmonic series: if `f_flagged = n·f0`, the adjacent
-harmonics `(n ± 1)·f0` are present for instruments with a full harmonic
-series (sawtooth waves, bowed strings, most acoustic instruments). A
-coincidental peak at f0 has no structural reason to produce energy at
-`f_flagged ± f0` — there is no physical mechanism linking a noise peak at
-one frequency to frequencies separated from the flagged tone by exactly
-f0. The false-suppression rate under sibling confirmation is **not
-derivable from delta alone** — it depends on the empirical peak density
-and harmonic structure of the material being processed. This is precisely
-what the §6b.6 null control measures: by comparing suppression rates on
-real flags versus random frequencies on the same audio, it provides a
-material-specific empirical estimate of false-suppression rate without
-requiring an independence assumption. No numeric false-suppression
-probability is asserted here (H4).
+of f0 across its harmonic series: if `f_flagged = n·f0`, at least one of
+the four sibling targets `(n ± 1)·f0` or `(n ± 2)·f0` will be
+structurally present — for full-harmonic (sawtooth-type) instruments all
+four are present; for odd-harmonic-only (square-wave) instruments the ±2
+targets are present. A coincidental peak at f0 has no structural reason to
+produce energy at any of those frequencies — there is no physical mechanism
+linking a noise peak to harmonically spaced frequencies. The false-
+suppression rate under sibling confirmation is **not derivable from delta
+alone** — it depends on the empirical peak density and harmonic structure
+of the material. This is precisely what the §6b.6 null control measures.
+No numeric false-suppression probability is asserted here (H4).
 
-**Open risk — odd-harmonic-only timbres (square waves, pulse waves).**
+**Odd-harmonic mitigation — selected and implemented (rev 6).**
 
-Instruments and synthesiser patches with a 50% duty cycle (square wave)
-produce energy only at odd harmonics of the fundamental. In this case
-every prominent peak in the spectrum sits at an odd multiple of the true
-fundamental F, including both `f_flagged` and any candidate f0 found
-below it. A harmonic ratio match fires when `f_flagged / f0 = n`, where n
-is the ratio of two odd multiples of F (and is therefore odd). The
-adjacent siblings are `(n ± 1)·f0` — where n is odd, n ± 1 is even —
-so both sibling frequencies are even multiples of F, structurally absent
-from the series. Sibling confirmation fails for every candidate on every
-flag, always.
+Rev 5 identified that the adjacent-only (±f0) sibling rule fails for
+instruments with 50% duty cycle (square waves, pulse pads): if
+`f_flagged = n·f0` with n odd, the targets `(n ± 1)·f0` are even multiples
+of the true fundamental — structurally absent from an odd-harmonic series.
+The mastering engineer selected the **±2·f0 widening** as the mitigation
+(rev 6, second review). Parity argument for correctness: `(n ± 2)·f0`,
+with n odd, are also odd multiples of the true fundamental — structurally
+present in the series. The self-confirming guard (also added in rev 6)
+ensures that the widened targets cannot trivially re-confirm the candidate
+fundamental itself:
 
-Concretely: square-wave pad with fundamental F, flag at `f_flagged = 5F`.
-Candidate f0 = F found below, harmonic ratio = 5 (odd), within delta —
-match. Sibling search: `5F + F = 6F` (even, absent) and `5F − F = 4F`
-(even, absent). No sibling confirmed. Guard falls through to case 2 and
-forwards the flag. Notch fires on musical content. DEF-009-001 is unfixed
-for this timbre class.
+- At n_nearest = 2: `f_flagged − f0 = f0` (self-confirming, skipped by
+  the guard).
+- At n_nearest = 3: `f_flagged − 2·f0 = f0` (self-confirming, skipped).
+- All other n_nearest values: no widened target reduces to f0, so the
+  guard never fires spuriously.
 
-This timbre class is common in club and electronic music: square-wave
-leads, 50%-duty pulse pads, subtractive synthesisers with square
-oscillators — the same source material that produced the 439 Sunday Club
-flags. It cannot be treated as an edge case for this genre.
-
-**Candidate mitigations — for mastering-engineer decision; not chosen
-here.** The adjacent-sibling form was specified at Gate 2 review and
-cannot be unilaterally changed by this architecture document.
-
-- *Widen to ±2·f0.* In addition to `f_flagged ± f0`, also check
-  `f_flagged ± 2·f0`. For an odd-harmonic series: if n is odd, then
-  `(n ± 2)·f0` are also odd multiples, structurally present. This
-  restores sibling confirmation for the square-wave case without changing
-  the algorithm's fundamental design.
-- *Generalise to any second harmonic.* Require at least one spectral peak
-  at `m·f0` (any integer m, m ≠ n_nearest) within `delta·f0` Hz. This
-  finds any second member of the same harmonic series. It covers odd-
-  harmonic, even-harmonic, and mixed-harmonic instruments uniformly, at
-  the cost of a slightly wider sibling search per candidate f0.
-
-The mastering engineer must select a mitigation and confirm whether the
-Sunday Club material contains predominantly odd-harmonic content before
-implementation proceeds. The §6b.6 item 1(d) reporting measures the scope
-of this hole on real flags directly.
+Example verification (square-wave pad, 440 Hz fundamental, flag at 1320 Hz,
+n_nearest = 3): `f_flagged + 2·f0 = 1320 + 880 = 2200 Hz` (5th harmonic,
+odd multiple, structurally present). Self-confirming check:
+`|2200 − 440| = 1760 >> 35.2 Hz (delta·f0)` — not self-confirming. Sibling
+confirmed, suppress = True. The mitigation works for this case.
 
 **Chosen values: `_HARMONIC_GUARD_DELTA = 0.08`, `_HARMONIC_GUARD_N_MAX = 10`.**
 
@@ -686,8 +667,8 @@ Verification of constraints:
 |---|---|---|---|
 | Notch protection | delta >= N_MAX/(2·Q) = 0.042 | 0.08 | Satisfied |
 | Discrimination (ratio alone) | 2·delta << 1 at K=1 only | 0.16 — collapses at K>1 | Insufficient alone |
-| Discrimination (with sibling, full-harmonic content) | Adjacent harmonics structurally present; coincidental noise peak lacks them | Specified in Step 5; empirically validated via §6b.6 | For full-harmonic series: Yes |
-| Discrimination (with sibling, odd-harmonic-only content) | Adjacent harmonics are even multiples — absent | Guard falls through; flags forwarded | Open risk — see above |
+| Discrimination (with sibling, full-harmonic content) | At least one of four sibling targets structurally present; coincidental noise peak lacks them | Step 5 four-target loop; empirically validated via §6b.6 | Yes |
+| Discrimination (with sibling, odd-harmonic-only content) | n±2 targets are odd multiples — structurally present | Resolved by ±2·f0 widening (rev 6) | Yes |
 
 At `_HARMONIC_GUARD_N_MAX = 10`, the minimum candidate fundamental that can
 protect a flagged frequency is `f_flagged / (N_MAX + 0.5)` (below which
@@ -774,12 +755,10 @@ Required imports: `numpy.fft.rfft` and `numpy.fft.rfftfreq` (already
 available), and `scipy.signal.find_peaks` (add import; consistent with the
 project's library guidance that `scipy.signal` is the analysis library).
 
-**The implementation must not proceed until the mastering engineer resolves
-the odd-harmonic sibling rule open risk (§6b.2) and selects a mitigation
-(±2·f0 widening or generalised-second-harmonic form).** An implementation
-built against the current adjacent-only (±f0) sibling rule will be stale
-if the mitigation changes the sibling loop, which it will for both
-candidate mitigations.
+The harmonic guard algorithm is fully specified in §6b.2 (Step 5, four-
+target sibling loop with self-confirming guard). Implementation may
+proceed. The offline acceptance check in §6b.6 item 1 must still be run
+and must pass before the stage is cleared for default-on.
 
 ### 5. Required tests
 
@@ -799,18 +778,17 @@ confidence_score=0.85, details={"frequency_hz": 1320.0,
 Config: `prominence_floor_db=10.0`.
 
 Harmonic ratio check: 1320/440 = 3.0, n_nearest=3, deviation=0.0 ≤ 0.08
-— passes. Sibling confirmation: `f_flagged + f0 = 1320 + 440 = 1760 Hz`
-(4th harmonic of 440, prominently present in the sawtooth) — within
-0.08 × 440 = 35.2 Hz of that position, sibling confirmed at first check.
-`suppress = True`.
+— passes. Sibling confirmation: `f_flagged + f0 = 1760 Hz` (4th harmonic,
+present; self-confirming check: |1760−440| = 1320 >> 35.2 Hz) — sibling
+confirmed at first target. `suppress = True`.
 
-Note: a square-wave variant of this test (odd harmonics only at 440 Hz:
-440, 1320, 2200, 3080, 3960 Hz) with the same flag at 1320 Hz would
-confirm the odd-harmonic failure mode — `1320 + 440 = 1760 Hz` (absent;
-even multiple) and `1320 − 440 = 880 Hz` (absent; even multiple), so the
-guard would fall through and forward the flag rather than suppressing it.
-The test-case-writer should add this square-wave variant to verify the
-open risk is present and measurable before implementation review.
+Note: add a square-wave variant of this test (odd harmonics only at 440 Hz:
+440, 1320, 2200, 3080, 3960 Hz) with the same flag at 1320 Hz. With the
+±2·f0 widening: `f_flagged + 2·f0 = 1320 + 880 = 2200 Hz` (5th harmonic,
+odd multiple, present in the series; self-confirming check:
+|2200−440| = 1760 >> 35.2 Hz). Sibling confirmed, suppress = True. The
+square-wave variant must now SUPPRESS (not forward) the flag — this
+verifies the ±2·f0 mitigation is implemented correctly.
 
 Assert: `actions[-1].harmonic_guard_suppressed` contains 1320.0 Hz.
 Assert: `actions[-1].frequencies_notched` does not contain 1320.0 Hz.
@@ -873,16 +851,13 @@ measures; this test cannot and does not test for it.**
 
 ### 6. Mastering-engineer handoff
 
-The harmonic guard method is architecturally specified. The following items
-must be reviewed by the mastering engineer before implementation proceeds:
+The harmonic guard method is fully specified and cleared for implementation
+(second review, rev 6). The following items remain for mastering-engineer
+review before the stage is cleared for default-on:
 
-**Item 0 — Odd-harmonic sibling rule resolution (blocks implementation).**
-Before the python-developer begins implementing the harmonic guard, the
-mastering engineer must either (a) select one of the two candidate
-mitigations in §6b.2 for the odd-harmonic-only timbre failure, or (b)
-confirm that the adjacent-only (±f0) rule is acceptable because the timbre
-class is absent or negligible in the Sunday Club material. Implementation
-must not proceed against an algorithm whose sibling rule may change.
+**Item 0 — Odd-harmonic sibling rule: Resolved (rev 6).** The mastering
+engineer selected ±2·f0 widening as the mitigation. This is now specified
+in Step 5. Implementation may proceed against the rev 6 algorithm.
 
 1. **Offline acceptance check with null control.** Run the guard offline
    over the 439 Sunday Club STATIONARY_WHISTLE flags. Report all four of:
@@ -904,10 +879,9 @@ must not proceed against an algorithm whose sibling rule may change.
        because sibling confirmation failed? This separates "no prominent
        candidate fundamental found below the flag" (guard's intended
        fall-through, Step 6 case 1) from "harmonic match confirmed but
-       adjacent sibling absent" (potential odd-harmonic-timbre rejection,
-       Step 6 case 2). A non-trivial count of real flags in the second
-       category indicates the odd-harmonic open risk is active on this
-       material and a mitigation must be selected before implementation.
+       no sibling confirmed" (Step 6 case 2). A non-trivial count here
+       warrants investigation into whether N_MAX or the prominence
+       threshold needs adjustment.
 
    **Acceptance criterion**: if the suppression rate for real flags is
    within 20 percentage points of the suppression rate for random
@@ -1480,14 +1454,11 @@ it").
   within delta of any harmonic of that frequency. Coincidental alignment
   with arbitrary frequencies on real programme material is what the
   offline null-control measures. The three synthetic tests (a), (b), (c)
-  are necessary but not sufficient correctness checks. The offline null-
-  control acceptance test from §6b.6 item 1 — comparing the suppression
-  rate on real flags against a random-frequency null control and reporting
-  the sibling-rejection count (item 1d) — is the discriminating-power
-  check that catches K-inflation failure on real material and measures the
-  odd-harmonic sibling risk. No implementation-stage approval should
-  proceed without that check passing and the mastering engineer resolving
-  §6b.6 Item 0.
+  are necessary but not sufficient correctness checks; the offline null-
+  control acceptance test from §6b.6 item 1 is the discriminating-power
+  check that catches K-inflation failure on real material. The square-wave
+  variant of test (a) verifies the ±2·f0 odd-harmonic mitigation (rev 6):
+  it must now suppress, not forward, the flag.
 
 ---
 
@@ -1619,13 +1590,11 @@ threshold" as the implied fix.
   strength threshold (reused), and `f_min_flag = 2000 Hz` (determines
   `l_analysis`) are physically derived or reused-with-justification but
   not empirically validated against the Sunday Club flag distribution —
-  flagged for mastering-engineer review in §6b.6 before implementation.
-- §6b harmonic guard sibling rule: the adjacent-only (±f0) sibling form
-  is architecturally specified pending mastering-engineer resolution of the
-  odd-harmonic sibling risk (§6b.2 open risk) and selection of a
-  mitigation (Item 0 in §6b.6) before implementation proceeds. If a
-  mitigation is selected, §6b.2 Step 5 and §6b.4 must be updated before
-  implementation begins.
+  flagged for mastering-engineer review in §6b.6 before default-on.
+- §6b harmonic guard sibling rule: the ±2·f0 four-target form (plus self-
+  confirming guard) is the selected algorithm as of rev 6. The odd-harmonic
+  mitigation question is resolved. Implementation may proceed against this
+  specification.
 
 ---
 
@@ -1723,52 +1692,45 @@ threshold" as the implied fix.
   (H6)**: sibling confirmation required between the harmonic match and the
   `suppress = True` assignment. After a harmonic match at (f0, n_nearest),
   the guard checks whether at least one of `f_flagged ± f0` carries a
-  prominently present peak (clearing `_DETECTOR_PROMINENCE_FLOOR_DB` in
-  the full-spectrum peak set, within `_HARMONIC_GUARD_DELTA * f0` Hz of
-  the sibling frequency). If no sibling is confirmed, the loop continues
-  to the next candidate f0 rather than suppressing. A genuine musical
-  fundamental at f0 produces harmonics at integer multiples of f0 across
-  its harmonic series; a coincidental noise peak at f0 has no physical
-  mechanism linking it to `f_flagged ± f0`. The false-suppression rate
-  under sibling confirmation is not derivable from delta alone — it depends
-  on empirical peak density and is measured by the §6b.6 null control.
-  Step 4 split into 4a (below-flagged peaks, unchanged) and 4b
-  (full-spectrum peaks, new, pre-computed once per flag). Self-match
-  excluded by construction. Step 6 updated to document both fall-through
-  cases. Discrimination table updated: harmonic ratio alone is insufficient
-  at K > 1; sibling check is the actual discriminating mechanism,
-  validated empirically via §6b.6. N>10 open-risk paragraph corrected:
-  removed incorrect "sibling check may still fire" clause. §6b.6 item 1
-  acceptance criterion replaced with null-control methodology. §13 updated:
-  K-inflation reasoning corrected (K-inflation is not prevented by K ≤ 12;
-  test (c) escapes it because frequencies are hand-picked). Test (a)
-  annotated with sibling-confirmation trace. No change to delta=0.08,
-  N_MAX=10, or any other constant. **Downstream impact**: any
-  implementation written against rev 3 is stale and must incorporate the
-  sibling confirmation before review.
+  prominently present peak. If no sibling is confirmed, the loop continues
+  to the next candidate f0 rather than suppressing. Step 4 split into 4a
+  and 4b. Self-match excluded by construction. Step 6 updated to document
+  both fall-through cases. Discrimination table updated. N>10 open-risk
+  paragraph corrected. §6b.6 item 1 acceptance criterion replaced with
+  null-control methodology. No change to delta=0.08, N_MAX=10. **Downstream
+  impact**: any implementation written against rev 3 is stale and must
+  incorporate the sibling confirmation before review.
 - 2026-08-19 (rev 5): §6b.2 — identified blocking open risk: the
   adjacent-only (±f0) sibling rule fails systematically for odd-harmonic-
   only timbres (square waves, pulse pads). Parity argument: if
-  f_flagged = n·f0 with n odd (as for any odd-harmonic series where both
-  f_flagged and f0 are odd multiples of the true fundamental), then
-  (n±1)·f0 are even multiples — absent from the series. Sibling
-  confirmation fails for every candidate, on every flag, for this timbre
-  class. Common in club/electronic production. Two candidate mitigations
-  added for mastering-engineer decision: (a) widen to ±2·f0 (which are
-  odd multiples for odd-harmonic series); (b) generalise to any m·f0,
-  m ≠ n_nearest. §6b.6 added Item 0 (implementation blocked until
-  mastering engineer selects a mitigation or confirms the timbre class is
-  absent from Sunday Club material) and item 1(d) (count of real flags
-  with harmonic-ratio match but failed sibling confirmation, to measure
-  the scope of this hole on actual material). §13 corrected: K-inflation
-  is active at K=12 (`1 − (0.84)^12 ≈ 0.88`); test (c) escapes it
-  because frequencies are hand-picked to be non-coincident, not because K
-  is small — paragraph rewritten to state this correctly. Discrimination
-  table updated with odd-harmonic row. §6b.4 implementation scope note:
-  implementation must not proceed until mastering engineer resolves §6b.6
-  Item 0. §15 updated with sibling-rule assumption. Test (a) updated with
-  note that a square-wave variant confirms the odd-harmonic failure mode.
-  **Downstream impact**: no implementation may proceed against the current
-  §6b algorithm until the mastering engineer resolves the sibling-rule
-  question. Once a mitigation is chosen, Step 5's sibling loop must be
-  updated before implementation begins.
+  f_flagged = n·f0 with n odd, then (n±1)·f0 are even multiples — absent
+  from the series. Sibling confirmation fails for every candidate, on
+  every flag, for this timbre class. Two candidate mitigations offered for
+  mastering-engineer decision: (a) widen to ±2·f0; (b) generalise to any
+  m·f0, m ≠ n_nearest. §6b.6 added Item 0 (implementation blocked until
+  mitigation selected) and item 1(d) (sibling-rejection count). §13
+  corrected K-inflation reasoning. Discrimination table updated.
+  **Downstream impact**: implementation blocked pending mastering-engineer
+  resolution of Item 0.
+- 2026-08-19 (rev 6): §6b.2 Step 5 revised per second mastering-engineer
+  review — **Proceed to implementation.** Two targeted changes: (1)
+  **±2·f0 sibling targets added** (odd-harmonic mitigation selected).
+  Sibling loop now checks four targets:
+  `[f_flagged + f0, f_flagged - f0, f_flagged + 2*f0, f_flagged - 2*f0]`.
+  Parity argument: for an odd-harmonic series with n_nearest odd,
+  (n±2)·f0 are also odd multiples and structurally present. Example
+  verified: 440 Hz square-wave pad, flag at 1320 Hz (n=3),
+  f_flagged + 2·f0 = 2200 Hz (5th harmonic, present). (2) **Self-
+  confirming sibling guard added**. Inside the sibling-target loop, skip
+  any target where `abs(sibling_f - f0) <= delta * f0` — the target is
+  indistinguishable from the candidate fundamental and provides no
+  independent evidence. Fires at n_nearest=2 (f_flagged − f0 = f0) and
+  n_nearest=3 (f_flagged − 2·f0 = f0). Odd-harmonic risk note in §6b.2
+  updated to show mitigation selected. §6b.4 implementation blocker
+  removed. §6b.5 test (a) square-wave variant updated: must now SUPPRESS
+  (not forward) the flag. §6b.6 Item 0 marked resolved. §15 assumption
+  updated. §13 updated with square-wave variant note. DEF-009-001 remains
+  Open pending implementation and listening gate. **Downstream impact**:
+  the Step 5 sibling loop in `whistle_repair.py` must implement the four-
+  target form with the self-confirming guard. Any implementation begun
+  against rev 5 is stale at this loop only; all other design is unchanged.
