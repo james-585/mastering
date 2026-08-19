@@ -371,6 +371,499 @@ the mastering engineer before default-on** — Gate 1 resolves the *method*
 
 ---
 
+## §6b. `repair_whistles` — harmonic guard (Blocker 3, Gate 2 finding)
+
+**Context.** The OLA-fixed, time-windowed, confidence+prominence co-gated
+implementation was validated on `Reference Tracks/Sunday Club.wav`
+(2026-08-18). 439 STATIONARY_WHISTLE flags passed all existing gates.
+Listening gate result: FAIL — "highly destructive." Root cause: the
+STORY-007 detector cannot distinguish a genuine AI encoder whistle (a
+narrow isolated tone with no harmonic context in the signal) from a
+sustained musical tone or pad harmonic (which has a clear fundamental and
+a harmonic series). 439 notches on musical content cause perceptual
+destruction regardless of notch precision.
+
+### 1. Option A confirmed closed
+
+Raising `confidence_threshold` above 0.8 is rejected as already settled
+in §6/Blocker 2: that number was calibrated to "surface a warning line,"
+not "commit an audio edit," and raising it repeats the CLAUDE.md §7
+"fix a wrong method by tuning its parameter" anti-pattern — recorded
+closed at Gate 1 and not re-opened here.
+
+**H6 classification (this fix):** Method addition. The harmonic guard is a
+new, independent filter stage inserted between the existing co-gates and
+the frequency-list build step. It uses a different signal property
+(harmonic relatedness) rather than retuning any existing threshold.
+
+### 2. Design: harmonic guard in `whistle_repair.py`
+
+**Placement.** After confidence + prominence co-gates, before
+`target_frequencies` is assembled:
+
+```
+matching_flags  (passed existing co-gates)
+   → harmonic_guard_filter(matching_flags, audio, sample_rate)
+   → forwarded_flags
+   → target_frequencies
+   → suno_dsp.repair_whistles
+```
+
+The guard operates on the pre-repair `audio` array (the `audio` parameter
+to `apply_whistle_repair` before any DSP call). It is pure Python and
+analysis-only — it does not alter `audio`.
+
+**Algorithm — for each flag in `matching_flags`:**
+
+*Step 1 — Analysis window selection.*
+
+The analysis window is centred on the flag's midpoint and extended
+symmetrically to `l_analysis` samples (a local variable derived below;
+not a module-level constant, because it depends on `sample_rate`). This
+uses surrounding audio context, which is valid because the harmonic guard
+is analysis-only: expanding the window captures more of the sustained
+musical content the guard needs to identify, at zero cost to the audio
+path.
+
+```python
+start_sample = int(round(flag.timestamp_start_s * sample_rate))
+end_sample   = int(round(flag.timestamp_end_s   * sample_rate))
+mid          = (start_sample + end_sample) // 2
+half         = l_analysis // 2
+an_start     = max(0, mid - half)
+an_end       = min(n_samples, an_start + l_analysis)
+segment      = audio[an_start:an_end]   # float64, may be shorter than l_analysis if near edges
+```
+
+If `segment` is shorter than `l_analysis` after clamping (only possible
+if the audio buffer is very short — §5 already guarantees
+`n_samples >= 4096`), the FFT is zero-padded to `l_analysis` for the
+transform only.
+
+*Step 2 — Mono-safe magnitude spectrum.*
+
+A time-domain channel mean can null an anti-correlated (L/R phase-inverted)
+tone, which is a plausible encoder artefact pattern. Combine in the
+magnitude domain by taking the element-wise maximum across channels:
+
+```python
+n_fft = l_analysis
+if audio.ndim == 2:
+    ch_mags = [np.abs(np.fft.rfft(segment[:, c], n=n_fft))
+               for c in range(audio.shape[1])]
+    spectrum = np.max(np.stack(ch_mags), axis=0)   # max per bin across channels
+else:
+    spectrum = np.abs(np.fft.rfft(segment, n=n_fft))
+freqs = np.fft.rfftfreq(n_fft, d=1.0 / sample_rate)
+```
+
+*Step 3 — Log-magnitude with programme-level-relative floor.*
+
+An absolute floor (e.g. `1e-9`) corrupts prominence estimates on spectra
+where HF bins sit legitimately below that floor; use a floor relative to
+the segment's own peak:
+
+```python
+eps_floor = spectrum.max() * 1e-6   # -120 dBFS relative to the segment peak
+log_spec  = 20.0 * np.log10(spectrum + eps_floor)
+```
+
+The `1e-6` multiplier (−120 dBFS re segment peak) is chosen because it
+falls below programme material at any reasonable level and below the
+dither floor established in §2 (~−120 dBFS at 20-bit equivalent), so it
+cannot create artefactual peaks.
+
+*Step 4a — Candidate fundamental detection (below flagged frequency).*
+
+Find spectral peaks below the flagged frequency using `scipy.signal.
+find_peaks` with local-prominence gating:
+
+```python
+f_flagged    = flag.details["frequency_hz"]
+flag_bin     = int(round(f_flagged * n_fft / sample_rate))
+peak_idxs, _ = find_peaks(
+    log_spec[:flag_bin],
+    prominence=_DETECTOR_PROMINENCE_FLOOR_DB,   # 6.0 dB, from whistle_repair.py line 30
+)
+```
+
+The `_DETECTOR_PROMINENCE_FLOOR_DB = 6.0` value is **reused**, not
+independently re-derived for this purpose. Justification for reuse: the
+STORY-007 detector emits STATIONARY_WHISTLE only when a tone is ≥ 6 dB
+locally prominent in its spectrum; "a candidate musical fundamental must
+clear the same local-prominence bar the detector itself uses to call
+something a tonal peak" is a reasonable anchor. This reuse is flagged for
+mastering-engineer review before implementation (see §6b.6) — it may need
+to be raised if the guard fires on noise peaks.
+
+*Step 4b — Full-spectrum peak set for sibling confirmation.*
+
+The sibling confirmation step (Step 5b below) checks for spectral energy
+at `f_flagged ± f0`, which may fall above `f_flagged`. To avoid a second
+`find_peaks` call per candidate f0, compute all prominent peaks in the
+full `log_spec` once per flag and cache the result as an array of peak
+frequencies:
+
+```python
+all_peak_idxs, _ = find_peaks(
+    log_spec,
+    prominence=_DETECTOR_PROMINENCE_FLOOR_DB,   # same threshold, same justification
+)
+all_peak_freqs = freqs[all_peak_idxs]   # shape (K_all,) — frequencies of all prominent peaks
+```
+
+This is computed once per flag, before the candidate-f0 loop, and reused
+for every sibling check within that flag's loop. Note: `all_peak_freqs`
+will include the flagged frequency's own bin if it is locally prominent.
+Self-match cannot satisfy a sibling test by construction: the sibling
+window is `|all_peak_freqs - sibling_f| <= delta·f0`, and
+`|f_flagged - sibling_f| = f0 > delta·f0 = 0.08·f0`, so the flagged bin
+is always further from any sibling than the window allows. No defensive
+exclusion of the flagged bin from `all_peak_freqs` is required.
+
+*Step 5 — Harmonic ratio test with sibling confirmation.*
+
+```python
+suppress = False
+for idx in peak_idxs:
+    f0 = freqs[idx]
+    if f0 <= 0.0:
+        continue
+    r         = f_flagged / f0
+    n_nearest = int(round(r))
+    if 1 <= n_nearest <= _HARMONIC_GUARD_N_MAX:
+        if abs(r - n_nearest) <= _HARMONIC_GUARD_DELTA:
+            # Harmonic ratio matched. Require sibling confirmation before suppressing
+            # to prevent K-inflation (see §6b.2 discrimination argument below).
+            sibling_confirmed = False
+            for sibling_f in [f_flagged + f0, f_flagged - f0]:
+                if sibling_f <= 0.0 or sibling_f >= sample_rate / 2.0:
+                    continue   # out of Nyquist range; skip without failing
+                # Accept if any prominent peak is within delta*f0 Hz of this sibling.
+                # delta*f0 Hz is the same window the harmonic test uses at fundamental f0 —
+                # equivalent to |f_peak/f0 - (n_nearest±1)| <= delta, consistent by construction.
+                if np.any(np.abs(all_peak_freqs - sibling_f) <= _HARMONIC_GUARD_DELTA * f0):
+                    sibling_confirmed = True
+                    break
+            if sibling_confirmed:
+                suppress = True
+                break
+            # No sibling found for this (f0, n_nearest): continue loop to next candidate f0.
+```
+
+The deviation is expressed in **harmonic-number units**: `|f_flagged/f0 −
+n_nearest| <= delta`. This makes coverage `2·delta` per harmonic interval,
+constant and independent of n. A relative-frequency formulation
+(`|f_flagged − n·f0| / f_flagged <= epsilon`) has coverage `2·epsilon·n`,
+which saturates (at epsilon = 0.06, n = 9, coverage exceeds 100% — every
+frequency is "harmonic-related") and must not be used.
+
+*Step 6 — No-op fall-through.*
+
+There are two distinct fall-through cases, both leaving `suppress = False`
+and the flag forwarded to the notch stage:
+
+1. `peak_idxs` is empty (silence, pure noise, or a genuinely isolated
+   tone with no strong spectral neighbours below it): the loop body never
+   executes. This is the required behaviour for a true AI encoder whistle
+   with no harmonic context.
+2. `peak_idxs` is non-empty but no candidate f0 produces a sibling-
+   confirmed match: the loop runs to exhaustion without setting
+   `suppress = True`. This distinguishes genuine musical harmonics (which
+   have spectral siblings at regular f0 spacing above and below the
+   flagged frequency) from coincidental tonal peaks that happen to have a
+   harmonic ratio to the flag but no harmonic neighbourhood.
+
+**Derivation of `_HARMONIC_GUARD_DELTA` and `_HARMONIC_GUARD_N_MAX`.**
+
+Two constraints bound the pair:
+
+*Lower bound — notch protection.* At harmonic n, the guard's Hz window
+around that harmonic is `delta · f0` (since
+`|f_flagged − n·f0| = |r − n| · f0 <= delta · f0`). The notch
+half-bandwidth at Q ≈ 120 is `f_flagged / (2·Q) ≈ n·f0 / 240`. For the
+guard to protect a harmonic that the notch will damage, the tolerance
+window must span at least the notch half-bandwidth at the highest harmonic
+checked:
+
+```
+delta · f0  >=  N_MAX · f0 / (2 · Q)
+delta       >=  N_MAX / (2 · Q)
+delta       >=  10 / 240  ≈  0.042
+```
+
+*Discrimination — why harmonic ratio alone is insufficient, and why
+sibling confirmation restores it.* The harmonic ratio test has coverage
+`2·delta` per harmonic interval for a single candidate fundamental (K = 1).
+**On dense club material, `find_peaks` with a 6 dB local-prominence gate
+returns K ≥ 15–30 qualifying peaks per flag window.** At K = 20 candidates,
+the probability that the harmonic ratio test alone suppresses any frequency
+by coincidental harmonic alignment is:
+
+```
+P(suppress by ratio alone | K = 20) = 1 − (1 − 2·delta)^K = 1 − (0.84)^20 ≈ 0.97
+```
+
+A "2·delta << 1 → discrimination" argument that holds at K = 1 collapses
+at K ≥ 10, regardless of delta. The harmonic ratio test alone cannot
+discriminate on dense material.
+
+**The sibling confirmation is the discriminating mechanism, not delta.**
+A coincidental peak at f0 has no structural reason to produce energy at
+`f_flagged ± f0` — there is no physical mechanism linking a noise peak at
+one frequency to frequencies separated from the flagged tone by exactly
+f0. A genuine fundamental at f0, by contrast, produces energy at all
+integer multiples of f0 by construction: if `f_flagged = n·f0`, then
+`f_flagged ± f0 = (n ± 1)·f0` are structurally guaranteed to carry energy
+as long as the harmonic series extends that far. The false-suppression rate
+under sibling confirmation is **not derivable from delta alone** — it
+depends on the empirical peak density of the material being processed, not
+on a derivable constant. This is precisely what the §6b.6 null control
+measures: by comparing suppression rates on real flags versus random
+frequencies on the same audio (same timestamps, substituted frequencies),
+it provides a material-specific empirical estimate of false-suppression
+rate without requiring an independence assumption. No numeric false-
+suppression probability is asserted here (H4).
+
+**Chosen values: `_HARMONIC_GUARD_DELTA = 0.08`, `_HARMONIC_GUARD_N_MAX = 10`.**
+
+Verification of constraints:
+
+| Constraint | Requirement | Value | Status |
+|---|---|---|---|
+| Notch protection | delta >= N_MAX/(2·Q) = 0.042 | 0.08 | Satisfied |
+| Discrimination (ratio alone) | 2·delta << 1 at K=1 only | 0.16 — collapses at K>1 | Insufficient alone |
+| Discrimination (with sibling) | Structural: genuine fundamental produces siblings; noise peak does not | Specified in Step 5 | Empirically validated via §6b.6 null control |
+
+At `_HARMONIC_GUARD_N_MAX = 10`, the minimum candidate fundamental that can
+protect a flagged frequency is `f_flagged / (N_MAX + 0.5)` (below which
+`n_nearest > N_MAX` and the range check eliminates the candidate). The
+true `f0_min` for the analysis-length derivation is therefore
+`f_min_flag / N_MAX`, where `f_min_flag` is the lowest expected flagged
+frequency — see L derivation below.
+
+**Open risk**: a flagged frequency that is the Nth harmonic (N > 10) of a
+bass fundamental is not protected. Example: 6400 Hz as the 32nd harmonic
+of a 200 Hz pad — at f0=200 Hz, r = 32, n_nearest = 32 > N_MAX = 10, the
+range check fires `continue` before the sibling block is reached. The
+sibling check provides no mitigation here: it cannot run unless the
+harmonic ratio test passes the range gate first. If the offline acceptance
+check (§6b.6 item 1) shows a non-trivial fraction of real Sunday Club flags
+coming from this N>10 pattern, N_MAX must be raised.
+
+**Derivation of `l_analysis` (local variable, not a module-level
+constant).**
+
+The FFT bin width must not exceed half the harmonic-guard tolerance in Hz
+at the smallest candidate fundamental, or a harmonic match may fall
+between bins and be missed.
+
+The harmonic test's range check (`1 <= n_nearest <= N_MAX`) means only
+candidate fundamentals above `f_flagged / (N_MAX + 0.5)` participate in
+the tolerance check. So the effective `f0_min` is
+`f_min_flag / N_MAX`, where `f_min_flag` is the lowest flagged frequency
+the guard is designed to handle. AI encoder whistles from this source
+material (Suno) are expected to occur predominantly above 2000 Hz; flags
+at lower frequencies overlap substantially with normal programme content.
+Using `f_min_flag = 2000 Hz`:
+
+```
+f0_min = f_min_flag / N_MAX = 2000 / 10 = 200 Hz
+required bin width  <=  delta · f0_min / 2  =  0.08 · 200 / 2  =  8.0 Hz
+l_analysis          =   2^ceil(log2(sample_rate / 8.0))
+```
+
+At 44100 Hz: l_analysis = 2^ceil(log2(5513)) = **8192**. At 48000 Hz:
+8192. At 96000 Hz: 16384.
+
+```python
+l_analysis = 1 << int(np.ceil(np.log2(sample_rate / 8.0)))
+# 44100 Hz → 8192;  48000 Hz → 8192;  96000 Hz → 16384
+# Local variable: computed once per apply_whistle_repair call from sample_rate.
+```
+
+**Consequence of f_min_flag = 2000 Hz assumption**: for flagged
+frequencies below 2000 Hz, the actual minimum resolvable fundamental
+(200 Hz) may not resolve candidate fundamentals in the range
+`[f_flagged/N_MAX, 200 Hz]` with the required precision. This is
+acceptable for this project because sub-2 kHz AI whistle flags are
+expected to be rare; the offline acceptance check (§6b.6 item 1) will
+reveal if this assumption is wrong.
+
+### 3. Config field
+
+`prominence_floor_db` (existing, required-explicit in §6/§9) remains
+unchanged. It must still be set before the stage can run.
+
+No new config field is added for the harmonic guard's internal constants.
+`_HARMONIC_GUARD_DELTA` and `_HARMONIC_GUARD_N_MAX` are module-level
+constants with derivations shown above; `l_analysis` is a local variable
+computed per call from `sample_rate`. All values are physically motivated
+but not yet empirically validated against reference programme material —
+covered by the mastering-engineer handoff in §6b.6.
+
+Adding a `None`-defaulted config field (per §9's standing discipline)
+would be premature: that pattern is for values with no defensible default.
+Here the derived values are shown; the open question is empirical
+calibration, not derivation. If the mastering engineer's review produces
+evidence that a different range is required, this section must be revised
+and a config field added at that revision.
+
+### 4. Implementation scope
+
+Python-only addition to `mastering/whistle_repair.py`. No change to
+`src_cpp/spectral_repair.cpp`. No change to STORY-007's detector, its
+thresholds, or its `ArtifactFlag` output schema.
+
+Required imports: `numpy.fft.rfft` and `numpy.fft.rfftfreq` (already
+available), and `scipy.signal.find_peaks` (add import; consistent with the
+project's library guidance that `scipy.signal` is the analysis library).
+
+### 5. Required tests
+
+Three synthetic tests are required. All test through the `apply_whistle_repair`
+interface — the harmonic guard is not callable independently.
+
+**(a) Harmonic suppression — guard fires.**
+
+Signal: 3 seconds at 44100 Hz, a sawtooth-approximation:
+`sum(sin(2·pi·n·440·t) / n for n in 1..10)`, giving a 440 Hz fundamental
+with harmonics at 880, 1320, 1760, 2200, 2640, 3080, 3520, 3960, 4400 Hz.
+All harmonics are above the `_DETECTOR_PROMINENCE_FLOOR_DB` floor.
+
+Fake flag: `ArtifactFlag(artifact_type="STATIONARY_WHISTLE",
+confidence_score=0.85, details={"frequency_hz": 1320.0,
+"prominence_db": 15.0}, timestamp_start_s=0.5, timestamp_end_s=2.5)`.
+Config: `prominence_floor_db=10.0`.
+
+Harmonic ratio check: 1320/440 = 3.0, n_nearest=3, deviation=0.0 ≤ 0.08
+— passes. Sibling confirmation: `f_flagged + f0 = 1320 + 440 = 1760 Hz`
+(4th harmonic of 440, prominently present in the sawtooth) — within
+0.08 × 440 = 35.2 Hz of that position, sibling confirmed at first check.
+`suppress = True`.
+
+Assert: `actions[-1].harmonic_guard_suppressed` contains 1320.0 Hz.
+Assert: `actions[-1].frequencies_notched` does not contain 1320.0 Hz.
+Assert: `np.array_equal(output, audio)` — when the guard suppresses all
+flags, `target_frequencies` is empty and `apply_whistle_repair` returns
+`audio.copy()` immediately (whistle_repair.py:162-164) without calling
+into `suno_dsp`. The §2 float32 tolerance does not apply here; there is
+no DSP round-trip, and the assertion is exact bit-identity.
+
+**(b) Isolated tone pass-through — guard does not fire.**
+
+Signal: 3 seconds at 44100 Hz, a single pure sine at 6427 Hz. No other
+energy above `_DETECTOR_PROMINENCE_FLOOR_DB` in the spectrum below
+6427 Hz.
+
+Fake flag: `ArtifactFlag(artifact_type="STATIONARY_WHISTLE",
+confidence_score=0.85, details={"frequency_hz": 6427.0,
+"prominence_db": 15.0}, timestamp_start_s=0.5, timestamp_end_s=2.5)`.
+Same `prominence_floor_db`.
+
+No candidate fundamentals below 6427 Hz clear the prominence gate, so
+`peak_idxs` is empty. No-op fall-through (Step 6, case 1).
+
+Assert: `actions[-1].harmonic_guard_suppressed` is empty.
+Assert: `actions[-1].frequencies_notched` contains 6427.0 Hz (flag
+forwarded and notched).
+
+**(c) Negative control (H3): strong bass fundamental present plus a strong
+within-N_MAX candidate, genuinely isolated whistle at a non-harmonic
+frequency — guard does not fire.**
+
+Signal: 3 seconds at 44100 Hz, mixing: (i) a 70 Hz sawtooth-approximation
+with harmonics at 70, 140, ..., 700 Hz; (ii) a strong isolated sine at
+500 Hz; and (iii) an isolated sine at 4327 Hz.
+
+The 500 Hz peak is designed to be the degeneracy probe: it is within
+N_MAX=10 reach of 4327 Hz (`4327/500 = 8.654`, `n_nearest = 9`), but the
+tolerance check fails (`|8.654 − 9| = 0.346 > delta = 0.08`). If delta
+were ≥ 0.35, the 500 Hz peak would suppress the whistle — which is exactly
+what this test detects as a tolerance-degeneracy failure.
+
+The 70 Hz harmonic series peaks whose n_nearest is in range (n_nearest ≤ 10
+for 4327 Hz): 4327/700 ≈ 6.18 → n=6, |0.18| > 0.08; 4327/630 ≈ 6.87 →
+n=7, |0.13| > 0.08; 4327/560 ≈ 7.73 → n=8, |0.27| > 0.08; 4327/490 ≈ 8.83
+→ n=9, |0.17| > 0.08; 4327/420 ≈ 10.3 → n=10, |0.30| > 0.08. All fail
+the tolerance check; the sibling check never runs for any of them.
+
+Fake flag at 4327 Hz (same confidence/prominence as (b)).
+
+Assert: `actions[-1].harmonic_guard_suppressed` is empty.
+Assert: `actions[-1].frequencies_notched` contains 4327.0 Hz.
+
+**Note: this test uses K ≤ 12 prominent peaks (ten 70 Hz harmonics plus the
+500 Hz isolated sine) and cannot catch K-inflation failure.** It is a
+necessary but not sufficient correctness check. The offline null-control
+acceptance test from §6b.6 is the discriminating-power check that catches
+K-inflation failure on real programme material with K ≥ 15.
+
+### 6. Mastering-engineer handoff
+
+The harmonic guard method is architecturally specified. The following items
+must be reviewed by the mastering engineer before implementation proceeds:
+
+1. **Offline acceptance check with null control.** Run the guard offline
+   over the 439 Sunday Club STATIONARY_WHISTLE flags. Report all three of:
+   (a) Suppression count on the 439 real flags.
+   (b) Suppression count for 439 randomly selected frequencies in the
+       same 2–12 kHz range, run against the same audio (same flag
+       timestamps, random frequencies substituted for the detected
+       frequencies). This null control measures how often the guard
+       suppresses a non-whistle frequency purely by coincidence on this
+       material.
+   (c) The distribution of K (number of peaks clearing the
+       `_DETECTOR_PROMINENCE_FLOOR_DB` prominence gate in the analysis
+       window) per flag window, reported as median, 90th percentile, and
+       maximum.
+
+   **Acceptance criterion**: if the suppression rate for real flags is
+   within 20 percentage points of the suppression rate for random
+   frequencies (null control), the guard has no discriminating power on
+   this material and the algorithm must be further revised before
+   implementation. If median K > 10, K-inflation is active on this
+   material; verify that the sibling confirmation is correctly reducing the
+   suppression rate relative to the null control (a meaningful gap between
+   real-flag and null-control rates confirms the sibling check is
+   functioning). If suppression count is 0 on real flags, the strength
+   threshold or N_MAX is too restrictive.
+
+2. **Strength threshold (prominence >= 6.0 dB local prominence)**: this
+   reuses `_DETECTOR_PROMINENCE_FLOOR_DB` as a convenient derivation, not
+   an independent calibration. If the guard suppresses genuine whistles
+   because a noise peak triggers it, this threshold must be raised; if the
+   guard misses musical harmonics because their fundamental does not clear
+   this floor, it must be lowered. Both failure modes are visible in the
+   offline acceptance check (item 1 above).
+
+3. **f_min_flag = 2000 Hz assumption**: this determines the FFT analysis
+   length. If STORY-007 flags whistles at frequencies below 2000 Hz where
+   the relevant musical fundamentals are below 200 Hz, `l_analysis` must
+   be increased and the derivation revised accordingly.
+
+4. **The stage remains `enabled: bool = False` by default.** Enabling the
+   stage still requires an explicit `prominence_floor_db` value per §6/§9.
+   The harmonic guard does not change this requirement.
+
+### Action-log contract addendum (§6b only)
+
+The existing `WhistleRepairSummary` (§11) gains two fields introduced by
+the harmonic guard. These are recorded here and should be reconciled into
+§11's rendering contract when §11 is next revised:
+
+```python
+harmonic_guard_suppressed: list[float] = field(default_factory=list)
+    # frequencies (Hz) suppressed by the guard; empty if guard fired on none
+harmonic_guard_suppressed_count: int = 0
+    # len(harmonic_guard_suppressed); present for operator convenience
+```
+
+These fields belong to the summary entry (`stage_ran=True`) appended to
+`actions`. `frequencies_notched` and `stage_ran` in §11 are unchanged.
+
+---
+
 ## 7. `shape_transients` — gain-law finding, root cause, and Python wrapper contract
 
 Requirements.md's finding, confirmed: `diff / (|diff| + 1e-6)` saturates to
@@ -884,6 +1377,21 @@ it").
   adjacent test in this story that is a genuine correctness check, not a
   regression lock — the expected "no periodic component" result is
   derivable from the OLA arithmetic shown in §3, satisfying H2.
+- `repair_whistles`'s harmonic guard tests (§6b) use synthetic signals
+  with analytically known harmonic structure, making the guard's pass/
+  suppress decision verifiable without reference material. Test (c)'s
+  within-N_MAX-but-outside-delta near-miss (500 Hz peak, 4327 Hz flag)
+  provides a degeneracy probe that fails loudly if delta is ≥ 0.35.
+  **However, test (c) uses K ≤ 12 prominent peaks and cannot catch
+  K-inflation failure**, which manifests on real programme material with
+  K ≥ 15–30 peaks per flag window. The three synthetic tests (a), (b),
+  (c) are necessary but not sufficient correctness checks. The offline
+  null-control acceptance test from §6b.6 item 1 — comparing the
+  suppression rate on real flags against a random-frequency null control
+  on the same audio — is the discriminating-power check that catches
+  K-inflation failure and the only check that can validate the sibling
+  confirmation's effectiveness on real programme material. No
+  implementation-stage approval should proceed without that check passing.
 
 ---
 
@@ -1010,6 +1518,12 @@ threshold" as the implied fix.
   — `architecture.md` §7.3's "report-only" language, DOMAIN.md §4's
   "Cannot" table) is out of this document's scope to fix; noted here only
   so it is not lost.
+- §6b harmonic guard: `_HARMONIC_GUARD_DELTA = 0.08`,
+  `_HARMONIC_GUARD_N_MAX = 10`, the `_DETECTOR_PROMINENCE_FLOOR_DB = 6.0`
+  strength threshold (reused), and `f_min_flag = 2000 Hz` (determines
+  `l_analysis`) are physically derived or reused-with-justification but
+  not empirically validated against the Sunday Club flag distribution —
+  flagged for mastering-engineer review in §6b.6 before implementation.
 
 ---
 
@@ -1061,3 +1575,79 @@ threshold" as the implied fix.
   design (§2), the windowed-crossfade design (§4), the sub-frame refusal
   (§5), or `collapse_swish`'s core semantics/placement (§8 apart from the
   noted report-field addition).
+- 2026-08-19 (rev 3): Added §6b — `repair_whistles` harmonic guard
+  (Blocker 3, Gate 2 finding). Context: Gate 2 listening test returned
+  FAIL ("highly destructive") on Sunday Club — 439 STATIONARY_WHISTLE
+  flags passed all existing co-gates, producing 439 notches on musical
+  content (synth pads, pad harmonics) indistinguishable by the detector
+  from genuine AI encoder whistles. **Method addition (H6): the harmonic
+  guard is a new, independent filter stage between the existing co-gates
+  and `target_frequencies` assembly — not a parameter change to any
+  existing threshold.** Design: FFT-based spectral peak finding over an
+  extended analysis window centred on each flag; if the flagged frequency
+  is within `_HARMONIC_GUARD_DELTA = 0.08` harmonic-number-units of the
+  Nth harmonic (N = 1..`_HARMONIC_GUARD_N_MAX = 10`) of any spectral peak
+  that clears `_DETECTOR_PROMINENCE_FLOOR_DB = 6.0` dB local prominence,
+  the flag is suppressed; otherwise it passes through. Delta and N_MAX are
+  derived from two inequalities: notch-protection lower bound
+  (delta >= N_MAX/(2·Q) = 0.042) and discrimination upper bound
+  (2·delta = 0.16 << 1). The harmonic-number-unit deviation formulation
+  is essential — a relative-frequency tolerance saturates above N~9 and
+  would suppress all flags on any track with a strong bass fundamental.
+  Magnitude spectra are combined across channels by element-wise max (not
+  time-domain mean) to avoid phase-cancellation nulling. Log-magnitude
+  floor is relative to the segment peak (−120 dBFS) rather than absolute.
+  `l_analysis` is a local variable (not a module-level constant) derived
+  from `f_min_flag = 2000 Hz` assumption: `l_analysis = 2^ceil(log2(
+  sample_rate/8))` (8192 at 44.1 kHz). **Downstream impact on
+  implementation:** `whistle_repair.py` must add the harmonic guard filter
+  between the existing prominence-gate loop and the `target_frequencies`
+  build step; `scipy.signal.find_peaks` import required; `WhistleRepairSummary`
+  gains `harmonic_guard_suppressed: list[float]` and
+  `harmonic_guard_suppressed_count: int` fields (these are documented in
+  §6b's action-log contract addendum and should be reconciled into §11
+  when §11 is next revised). Test (a): suppress-and-assert-exact-equality
+  (no DSP call when list is empty, so `np.array_equal` not float32
+  tolerance). Test (c) uses a within-N_MAX-but-outside-delta near-miss
+  (500 Hz strong peak, flag at 4327 Hz, 4327/500=8.654, deviation=0.346
+  > 0.08) as the degeneracy probe. §15 updated with harmonic guard
+  assumption notes.
+- 2026-08-19 (rev 4): §6b revised — sibling confirmation added to
+  harmonic guard per mastering-engineer review (Gate 2 blocking finding:
+  K-inflation). **Problem**: at K = 20 qualifying peaks per flag window
+  (typical for dense club material), `P(suppress by harmonic ratio alone)
+  ≈ 1 − (0.84)^20 ≈ 0.97` regardless of musical content — the harmonic
+  ratio test alone cannot discriminate on this material. **Method addition
+  (H6)**: sibling confirmation required between the harmonic match and the
+  `suppress = True` assignment. After a harmonic match at (f0, n_nearest),
+  the guard checks whether at least one of `f_flagged ± f0` carries a
+  prominently present peak (clearing `_DETECTOR_PROMINENCE_FLOOR_DB` in
+  the full-spectrum peak set, within `_HARMONIC_GUARD_DELTA * f0` Hz of
+  the sibling frequency). If no sibling is confirmed, the loop continues
+  to the next candidate f0 rather than suppressing. A genuine musical
+  fundamental at f0 produces harmonics at all integer multiples of f0 by
+  construction; a coincidental noise peak at f0 has no physical mechanism
+  linking it to `f_flagged ± f0`. The false-suppression rate under sibling
+  confirmation is not derivable from delta alone — it depends on empirical
+  peak density and is measured by the §6b.6 null control (no numeric
+  false-suppression probability is asserted, H4). Step 4 split into 4a
+  (below-flagged peaks, unchanged) and 4b (full-spectrum peaks, new,
+  pre-computed once per flag). Self-match excluded by construction (window
+  `delta·f0 < f0`, so flagged bin cannot satisfy any sibling check).
+  Step 6 updated to document both fall-through cases. Discrimination table
+  updated: harmonic ratio alone is insufficient at K > 1; sibling check
+  is the actual discriminating mechanism, validated empirically via §6b.6.
+  N>10 open-risk paragraph corrected: removed incorrect "sibling check may
+  still fire" clause — the sibling check cannot run if the range check
+  eliminates the candidate (n_nearest > N_MAX fires `continue` first).
+  §6b.6 item 1 acceptance criterion replaced with null-control methodology
+  (compare real-flag vs. random-frequency suppression rates; report K
+  distribution; accept only if gap > 20 percentage points). §13 updated:
+  test (c)'s K ≤ 12 limitation stated explicitly; offline null-control
+  check named as the discriminating-power test. Test (a) annotated with
+  explicit sibling-confirmation trace (1760 Hz sibling confirmed). No
+  change to delta=0.08, N_MAX=10, or any other constant. **Downstream
+  impact on implementation**: `whistle_repair.py` must add Step 4b
+  (`all_peak_idxs`/`all_peak_freqs` computation) and the sibling loop
+  inside Step 5. Any implementation written against rev 3 is stale and
+  must incorporate the sibling confirmation before review.
