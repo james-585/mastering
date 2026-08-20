@@ -73,4 +73,35 @@ Tests TC-001, TC-002, TC-003 (tagged `[BLOCKED-ON: OLA fix, arch §3]` in test-c
 
 **Pipeline bug found and fixed during e2e validation (2026-08-18)**: `pipeline.py` raised `UnboundLocalError: cannot access local variable 'quality_review'` because the STORY-025 wiring placed `build_report(quality_review=quality_review)` before the `quality_review = evaluate_quality_review(...)` assignment. Fixed by moving the `evaluate_quality_review` call to immediately before `build_report()`, where `post_ingest_result` is already available.
 
-**Required status update before closure**: The defect should remain open until the repair stage is replaced with a detector-gated, time-local, OLA-correct method and verified to reduce the `STATIONARY_WHISTLE` issue without damaging programme material.
+**Harmonic guard e2e result (2026-08-20)**:
+
+The harmonic guard (§6b rev 6) was implemented and run against Sunday Club (48 kHz, 439 flags after confidence+prominence gate).
+
+| Metric | Value |
+|---|---|
+| Harmonic guard suppressed | 420 / 439 (95.7%) |
+| Forwarded to notch stage | 19 |
+| Post-master STATIONARY_WHISTLE count | 428 (pre: 452) |
+| Full pipeline output | `Reference Tracks/Sunday Club_mastered.wav` |
+| Full pipeline report | `Reference Tracks/Sunday Club_mastered_report.md` |
+| Mastered levels | −13.54 LUFS, −2.73 dBTP, DR9 |
+
+**Listening gate risk — 6 sub-500 Hz notches forwarded by guard:**
+
+| Frequency | Prominence | Window | Risk |
+|---|---|---|---|
+| 166.0 Hz | +44.5 dB | 8.50–11.25 s | E3 bass — harmonic guard found no fundamental below 166 Hz |
+| 166.0 Hz | +28.2 dB | 19.50–21.25 s | same |
+| 190.0 Hz | +18.6 dB | 176.00–177.75 s | near G3 |
+| 196.0 Hz | +37.1 dB | 154.50–158.50 s | G3 |
+| 246.0 Hz | +25.4 dB | 207.50–209.25 s | B3 |
+| 494.0 Hz | +28.8 dB | 156.50–158.75 s | B4 |
+
+The 44.5 dB local prominence of the 166 Hz flag is unusually high for a bass fundamental (bass harmonics would reduce local prominence); it may be a genuine AI encoder artifact at a musical pitch class. The listening gate at those timestamps is the decision point.
+
+The 13 high-frequency notches (15.3–22.4 kHz, clustered 152–161 s) are lower-risk and consistent with AI encoder aliasing artifacts.
+
+**Status update before closure**: The defect should remain open until:
+1. A listener evaluates `Reference Tracks/Sunday Club_mastered.wav` at the flagged timestamps (especially 8.5 s, 19.5 s, 154.5 s, 156.5 s, 176 s, 207.5 s).
+2. If the sub-500 Hz notches are perceived as destructive, the harmonic guard must extend N_MAX or lower f0_min to catch bass-range fundamentals, or the `f_min_flag` threshold must be raised to exclude flags below that floor from being forwarded.
+3. Listening gate passes: close defect.
