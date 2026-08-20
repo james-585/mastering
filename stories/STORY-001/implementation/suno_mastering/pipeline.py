@@ -455,7 +455,9 @@ def master(
     # post_ingest_result is available; placed before build_report so the result
     # can be embedded in the report and MasteringResult together.
     quality_review = evaluate_quality_review(
-        ingest_result.audio, post_ingest_result.audio, ingest_result.sample_rate
+        ingest_result.audio, post_ingest_result.audio, ingest_result.sample_rate,
+        artifact_detection_original=artifact_detection,
+        artifact_detection_processed=post_artifact_detection,
     )
 
     # --- [11] Report generation ---

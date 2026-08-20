@@ -107,6 +107,9 @@ def compute_grounded_metrics(
     processed: np.ndarray,
     sr: int,
     config: GroundedReviewConfig = GroundedReviewConfig(),
+    *,
+    artifact_detection_original=None,
+    artifact_detection_processed=None,
 ) -> GroundedMetrics:
     orig = _as_float64(original)
     proc = _as_float64(processed)
@@ -135,8 +138,15 @@ def compute_grounded_metrics(
     dr_delta = dr_processed - dr_original
 
     # 4. Artifact density, before/after on the level-matched pair.
-    _, artifact_original = detect_artifacts(orig, sr)
-    _, artifact_processed = detect_artifacts(match.matched_processed, sr)
+    # Accept pre-computed results from the pipeline to avoid redundant detection passes.
+    if artifact_detection_original is not None:
+        artifact_original = artifact_detection_original
+    else:
+        _, artifact_original = detect_artifacts(orig, sr)
+    if artifact_detection_processed is not None:
+        artifact_processed = artifact_detection_processed
+    else:
+        _, artifact_processed = detect_artifacts(match.matched_processed, sr)
     artifact_density_delta = (
         artifact_processed.overall_artifact_density_score
         - artifact_original.overall_artifact_density_score
@@ -253,8 +263,15 @@ def evaluate_quality_review(
     sr: int,
     human_review: Optional[Dict[str, str]] = None,
     config: GroundedReviewConfig = GroundedReviewConfig(),
+    *,
+    artifact_detection_original=None,
+    artifact_detection_processed=None,
 ) -> QualityReviewResult:
-    metrics = compute_grounded_metrics(original, processed, sr, config)
+    metrics = compute_grounded_metrics(
+        original, processed, sr, config,
+        artifact_detection_original=artifact_detection_original,
+        artifact_detection_processed=artifact_detection_processed,
+    )
     flag_audit_lines = _flag_audit_lines(metrics, config)
     before_after = _flatten_metrics(metrics)
 
