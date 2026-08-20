@@ -13,10 +13,17 @@ set "PYTHONPATH=%IMPLEMENTATION_DIR%;%PYTHONPATH%"
 
 cd /d "%IMPLEMENTATION_DIR%"
 
+REM Load HF_TOKEN from .env if present
+if exist "%REPO_ROOT%.env" (
+    for /f "usebackq tokens=1,* delims==" %%A in ("%REPO_ROOT%.env") do (
+        if /i "%%A"=="HF_TOKEN" set "HF_TOKEN=%%B"
+    )
+)
+
 echo Input file: %INPUT%
 echo.
 echo Activating environment...
-call "%REPO_ROOT%venv\Scripts\activate.bat"
+call "%REPO_ROOT%.venv\Scripts\activate.bat"
 
 echo Environment ready. Starting mastering — this can take a minute or two
 echo per track with no output in between, that is normal, please wait...

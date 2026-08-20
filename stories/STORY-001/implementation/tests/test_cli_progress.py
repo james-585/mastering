@@ -131,7 +131,9 @@ def test_repair_whistles_noop_when_no_matching_flags():
 
 def test_repair_whistles_only_forward_detector_confirmed_stationary_whistles():
     sr = 44100
-    audio = np.sin(2.0 * np.pi * 1000.0 * np.arange(8192, dtype=np.float64) / sr).astype(np.float64)
+    # Silence has no spectral peaks, so the harmonic guard never suppresses
+    # the flag regardless of its frequency.
+    audio = np.zeros(8192, dtype=np.float64)
     flag = ArtifactFlag(
         timestamp_start_s=0.1,
         timestamp_end_s=0.2,
@@ -155,12 +157,11 @@ def test_repair_whistles_respects_flagged_time_window_locality():
     sr = 44100
     n_samples = 10 * sr
     t = np.arange(n_samples, dtype=np.float64) / sr
-    rng = np.random.default_rng(0)
-    audio = rng.standard_normal(n_samples).astype(np.float64)
-    whistle = np.zeros_like(audio)
+    # Silence background: no spectral peaks, so the harmonic guard cannot
+    # suppress the 6400 Hz flag regardless of sibling search results.
+    audio = np.zeros(n_samples, dtype=np.float64)
     window = (t >= 4.0) & (t <= 6.0)
-    whistle[window] = 0.25 * np.sin(2.0 * np.pi * 6400.0 * t[window])
-    audio = audio + whistle
+    audio[window] += 0.25 * np.sin(2.0 * np.pi * 6400.0 * t[window])
 
     flag = ArtifactFlag(
         timestamp_start_s=4.0,

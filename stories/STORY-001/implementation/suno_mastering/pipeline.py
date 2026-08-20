@@ -3,12 +3,12 @@
 The operator-facing stage narration follows the product's six macro-phases:
 
     1. Stem Split          - ingest, validate, Demucs stem separation, stem analysis
-    2. Lochness EQ          - targets-based per-stem corrective EQ, adaptive harshness
-    3. Tighten Low End       - detector-driven sub-bass / vocal stem repair
-    4. Reintegrate Lows      - stereo width, transient restoration, harshness control,
+    2. Tighten Low End      - stem mastering: transient restoration, harshness control,
                                stereo imaging, and controlled bus glue re-summation
-    5. Loudness Normalize    - two-pass measured LUFS/true-peak solver + dither
-    6. Ready for Release     - export, integrity check, before/after reporting
+    3. Lochness EQ          - targets-based per-stem corrective EQ, adaptive harshness
+    4. Reintegrate Lows     - stereo width, detector-driven sub-bass / vocal repair
+    5. Loudness Normalize   - two-pass measured LUFS/true-peak solver + dither
+    6. Ready for Release    - export, integrity check, before/after reporting
 
 Each macro-phase keeps the existing reference-derived targets and detector-driven
 DSP methods underneath; only the operator-facing grouping/order changed to match
@@ -259,9 +259,9 @@ def master(
     # Requirement: artifact fixes happen after identification and within Stage [2].
     stem_result = None
     if config.stem_config.enabled:
-        _announce_story_step(3, "Tighten Low End", f"detector-driven sub-bass/vocal repair, model={config.stem_config.model_name}", reporter=reporter)
+        _announce_story_step(2, "Tighten Low End", f"detector-driven sub-bass/vocal repair, model={config.stem_config.model_name}", reporter=reporter)
         logger.info("=" * 70)
-        logger.info("STAGE 3: STEM ISSUE IDENTIFICATION + REPAIR (STORY-008)")
+        logger.info("STAGE 2: STEM ISSUE IDENTIFICATION + REPAIR (STORY-008)")
         logger.info("=" * 70)
         from .stem_integration import run_stem_preprocessing
 
@@ -279,18 +279,17 @@ def master(
         print("[Stage 2] Stem issue identification and repair complete; continuing to resampling")
 
     # --- Story 11-15: active stem-aware mastering path ---
-    # Runs here, right after stem separation/repair, so its output becomes the
-    # audio buffer that EQ/width/loudness act on instead of being discarded by
-    # them (it previously ran last and re-derived the mix from the stale,
-    # pre-EQ stems, silently throwing away every later corrective stage).
-    # Labeled stage 3 (not 4) here since it now runs before Lochness EQ (2).
-    _announce_story_step(3, "Tighten Low End", "stem attack and clarity upgrade", reporter=reporter)
+    # Runs here (Stage 2), right after stem separation/repair, so its output
+    # becomes the audio buffer that EQ/width/loudness act on. It previously ran
+    # last and re-derived the mix from the stale pre-EQ stems, silently throwing
+    # away every later corrective stage.
+    _announce_story_step(2, "Tighten Low End", "stem attack and clarity upgrade", reporter=reporter)
     audio, story_11_17_actions = _apply_story_11_17_stem_mastering(
         audio, ingest_result.sample_rate, stem_result
     )
-    _announce_story_step(3, "Tighten Low End", "local de-haze and control", reporter=reporter)
-    _announce_story_step(3, "Tighten Low End", "widens only safe, stereo-healthy stems", reporter=reporter)
-    _announce_story_step(3, "Tighten Low End", "cohesive final mix balance", reporter=reporter)
+    _announce_story_step(2, "Tighten Low End", "local de-haze and control", reporter=reporter)
+    _announce_story_step(2, "Tighten Low End", "widens only safe, stereo-healthy stems", reporter=reporter)
+    _announce_story_step(2, "Tighten Low End", "cohesive final mix balance", reporter=reporter)
 
     # Per-band stereo widths (Stage [2] measurement used as pre_widths for Stage [5a]).
     # Uses the current working audio so stem-preprocessed material is consistent
@@ -306,7 +305,7 @@ def master(
     sr = ingest_result.sample_rate
 
     # --- [4] tonal balance / transient density / harshness / width behavior / dynamic range ---
-    _announce_story_step(2, "Lochness EQ", "analysis and corrective targets", reporter=reporter)
+    _announce_story_step(3, "Lochness EQ", "analysis and corrective targets", reporter=reporter)
     resample_outcome = resample_mod.resample_if_needed(audio, sr, config)
     audio = resample_outcome.audio
     sr = resample_outcome.sample_rate
@@ -320,7 +319,7 @@ def master(
     # --- [4a] repair_whistles (detector-driven only, config-gated) ---
     repair_whistle_actions: list = []
     if config.repair_whistles.enabled:
-        _announce_story_step(2, "Lochness EQ", "detector-driven cleanup", reporter=reporter)
+        _announce_story_step(3, "Lochness EQ", "detector-driven cleanup", reporter=reporter)
         audio, repair_whistle_actions = whistle_repair_mod.apply_whistle_repair(
             audio,
             sr,
@@ -334,7 +333,7 @@ def master(
     # uses correct band bounds (sub=20–60 Hz, low_mid=120–500 Hz) from the
     # seven-band scheme, rather than the three-band frequency_balance bands which
     # map different frequency ranges (20–120 Hz and 200–500 Hz respectively).
-    _announce_story_step(2, "Lochness EQ", "targets-based corrective EQ", reporter=reporter)
+    _announce_story_step(3, "Lochness EQ", "targets-based corrective EQ", reporter=reporter)
     seven_band = seven_band_balance_mod.measure_seven_band_balance(audio, sr, ref_cfg)
     seven_band_map = {b.band: b.relative_db for b in seven_band.bands}
     pre_band_levels = {
@@ -349,7 +348,7 @@ def master(
 
     adaptive_harshness_actions: list = []
     if config.adaptive_harshness.enabled:
-        _announce_story_step(2, "Lochness EQ", "evidence-based stem-aware reduction", reporter=reporter)
+        _announce_story_step(3, "Lochness EQ", "evidence-based stem-aware reduction", reporter=reporter)
         audio, adaptive_harshness_actions = adaptive_harshness_mod.apply_adaptive_harshness(
             audio,
             sr,

@@ -17,6 +17,7 @@ from .mastering.adaptive_harshness import AdaptiveHarshnessConfig
 _DEFAULT_REFERENCE_CURVE = str(
     Path(__file__).resolve().parent / "reference" / "progressive_house_124bpm.json"
 )
+_DEFAULT_TARGETS_JSON = str(Path(__file__).resolve().parents[4] / "targets.json")
 
 
 @dataclass
@@ -181,7 +182,7 @@ class MasteringConfig:
     dither_seed: int = 42
 
     # --- Targets ---
-    targets_json_path: str | None = "C:\\Users\\james\\Documents\\suno-mastering\\targets.json"
+    targets_json_path: str | None = _DEFAULT_TARGETS_JSON
 
     # --- Solver (loudness_limit.py / stereo_correct.py) ---
     solver_max_iterations: int = 32

@@ -15,6 +15,8 @@ def _ensure_suno_dsp_on_path() -> None:
     """Add repo-local build directories so the compiled suno_dsp extension is importable."""
     repo_root = Path(__file__).resolve().parents[4]
     candidate_dirs = [
+        repo_root / "artifacts" / "build" / "build" / "Release",
+        repo_root / "artifacts" / "build" / "build" / "Debug",
         repo_root / "build" / "Release",
         repo_root / "build" / "Debug",
         repo_root / "build-vs2026" / "Release",
