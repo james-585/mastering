@@ -57,7 +57,8 @@ def measure_all(audio: np.ndarray, sr: int, config) -> Measurements:
     # Explicit SR check avoids masking genuine ValueError bugs inside the
     # detector (CLAUDE.md: "fail loudly on invalid input").
     if sr >= _ARTIFACT_MIN_SR:
-        _, artifact_result = detect_artifacts(audio, sr)
+        _detect_whistles = getattr(getattr(config, "repair_whistles", None), "detect_stationary_whistles", True)
+        _, artifact_result = detect_artifacts(audio, sr, detect_stationary_whistles=_detect_whistles)
     else:
         artifact_result = None  # unsupported SR (< 32 kHz): skip silently
 

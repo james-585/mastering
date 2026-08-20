@@ -34,7 +34,7 @@ REM Use the stem-aware pre-master flow so repairs are triggered only after
 REM explicit stem-level issue identification in Stage 2. Stem separation
 REM always runs the 6-stem HTDemucs model (piano/guitar isolation); the
 REM four-stem models remain available via --stem-model overrides.
-python -m suno_mastering "%INPUT%" --split-stems --stem-model htdemucs_6s --no-repair-whistles --no-shape-transients --no-collapse-swish
+python -m suno_mastering "%INPUT%" --split-stems --stem-model htdemucs_6s --no-detect-whistles --no-repair-whistles --no-shape-transients --no-collapse-swish
 
 if errorlevel 2 (
     echo.

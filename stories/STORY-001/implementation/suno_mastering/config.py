@@ -94,6 +94,9 @@ class RepairWhistlesConfig:
     # Reuses config.stereo_crossfade_ms's value as a starting point
     # (architecture.md Section 4).
     crossfade_ms: float = 50.0
+    # When False, _detect_stationary_whistle is skipped entirely so whistle
+    # flags never appear in the artifact summary or repair pipeline.
+    detect_stationary_whistles: bool = True
 
 
 @dataclass

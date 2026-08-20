@@ -140,6 +140,13 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Validate the input and configuration without running the full mastering pipeline.",
     )
     parser.add_argument(
+        "--detect-whistles",
+        dest="detect_whistles",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Enable or disable stationary-whistle detection (default: on). Use --no-detect-whistles to suppress whistle flags entirely.",
+    )
+    parser.add_argument(
         "--repair-whistles",
         dest="repair_whistles",
         action=argparse.BooleanOptionalAction,
@@ -311,6 +318,8 @@ def main(argv=None) -> int:
         args.collapse_swish = False
 
     _prompt_artifact_toggles(args, config)
+    if args.detect_whistles is not None:
+        config.repair_whistles.detect_stationary_whistles = args.detect_whistles
     if args.repair_whistles is not None:
         config.repair_whistles.enabled = args.repair_whistles
     if args.shape_transients is not None:

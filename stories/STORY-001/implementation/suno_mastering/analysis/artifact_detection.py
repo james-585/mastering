@@ -1022,6 +1022,7 @@ def _detect_phase_swish(
 def detect_artifacts(
     audio: np.ndarray,
     sr: int,
+    detect_stationary_whistles: bool = True,
 ) -> tuple[np.ndarray, ArtifactDetectionResult]:
     """Detect Suno generation artifacts in audio.
 
@@ -1109,8 +1110,9 @@ def detect_artifacts(
         haze_flags = _detect_digital_haze(Zxx_mono, f, t_mono)
         all_flags.extend(haze_flags)
 
-        whistle_flags = _detect_stationary_whistle(Zxx_mono, f, t_mono)
-        all_flags.extend(whistle_flags)
+        if detect_stationary_whistles:
+            whistle_flags = _detect_stationary_whistle(Zxx_mono, f, t_mono)
+            all_flags.extend(whistle_flags)
 
     if not is_originally_mono:
         try:
