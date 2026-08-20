@@ -38,6 +38,9 @@ class StemConfig:
     segment_seconds: float | None = None
     profile_version: str = "demucs-default-v1"
     allow_device_fallback: bool = True
+    # Disk cache for separated stems. Set to None to disable. Keyed by
+    # audio SHA-256 + model + profile so re-runs of the same file skip Demucs.
+    stem_cache_dir: str | None = str(Path.home() / ".cache" / "suno-mastering" / "stems")
 
     # Bass stem processing
     bass_mono_cutoff_hz: float = 90.0  # Mono summing below this frequency

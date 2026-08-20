@@ -17,6 +17,7 @@ from contextlib import nullcontext
 from importlib import metadata as importlib_metadata
 import logging
 import os
+from pathlib import Path
 import threading
 from typing import Any, Callable
 
@@ -284,6 +285,26 @@ def split_stems(
         raise ValueError("sample_rate must be a positive integer")
 
     _ensure_hf_token_env()
+
+    # --- Disk cache check ---
+    _cache_dir_str = getattr(stem_config, "stem_cache_dir", None)
+    _cache_dir = Path(_cache_dir_str) if _cache_dir_str else None
+    if _cache_dir is not None:
+        from importlib import metadata as _meta
+        _demucs_ver = None
+        try:
+            _demucs_ver = _meta.version("demucs")
+        except Exception:
+            pass
+        from . import stem_cache as _stem_cache
+        _cached = _stem_cache.load(
+            _cache_dir, audio_array, sample_rate,
+            stem_config.model_name, stem_config.shifts,
+            stem_config.overlap, stem_config.segment_seconds, _demucs_ver,
+        )
+        if _cached is not None:
+            return _cached
+
     torch_module, model_loader, apply_model_fn = _load_dependencies(
         torch_module, model_loader, apply_model_fn
     )
@@ -390,4 +411,15 @@ def split_stems(
         runtime_metadata["residual_peak"],
         residual_energy_ratio,
     )
-    return StemBundle(stems, runtime_metadata)
+    bundle = StemBundle(stems, runtime_metadata)
+
+    # --- Disk cache save ---
+    if _cache_dir is not None:
+        _stem_cache.save(
+            _cache_dir, audio_array, sample_rate,
+            stem_config.model_name, stem_config.shifts,
+            stem_config.overlap, stem_config.segment_seconds, _demucs_ver,
+            bundle,
+        )
+
+    return bundle

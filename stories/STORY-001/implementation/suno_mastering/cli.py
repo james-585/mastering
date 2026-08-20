@@ -140,6 +140,14 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Validate the input and configuration without running the full mastering pipeline.",
     )
     parser.add_argument(
+        "--stem-cache",
+        dest="stem_cache",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Enable or disable the disk cache for Demucs stem separation (default: on). "
+             "Use --no-stem-cache to force a fresh Demucs run.",
+    )
+    parser.add_argument(
         "--detect-whistles",
         dest="detect_whistles",
         action=argparse.BooleanOptionalAction,
@@ -318,6 +326,8 @@ def main(argv=None) -> int:
         args.collapse_swish = False
 
     _prompt_artifact_toggles(args, config)
+    if args.stem_cache is not None and not args.stem_cache:
+        config.stem_config.stem_cache_dir = None
     if args.detect_whistles is not None:
         config.repair_whistles.detect_stationary_whistles = args.detect_whistles
     if args.repair_whistles is not None:
