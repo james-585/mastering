@@ -134,6 +134,10 @@ class Measurements:
     artifact_detection: Optional[ArtifactDetectionResult] = None
     # Human-readable strings for high-confidence flags (confidence >= 0.8)
     plausibility_warnings: List[str] = field(default_factory=list)
+    # STORY-027: HF band-limit cliff detection (hf_extension.py wired into measure_all).
+    # None = no cliff detected or track too short.  Report-only per CLAUDE.md §6.2.
+    hf_band_limit_hz: Optional[float] = None
+    hf_band_limit_confidence: Optional[float] = None
 
 
 # ── STORY-008: Stem separation types ──────────────────────────────────────

@@ -148,6 +148,20 @@ def build_arg_parser() -> argparse.ArgumentParser:
              "Use --no-stem-cache to force a fresh Demucs run.",
     )
     parser.add_argument(
+        "--harshness-correction",
+        dest="harshness_correction",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help=(
+            "Enable the adaptive harshness correction stage (2-5 kHz, default: off). "
+            "Applies a broad shelf or narrow cut when presence_harsh deviation exceeds "
+            "the stage threshold.  Default-off pending targets.json threshold derivation "
+            "(STORY-027 arch §4.3 — AC5 partially satisfied: reachability delivered; "
+            "default-fire deferred).  STORY-010 third branch (reference-target mismatch) "
+            "is not yet implemented."
+        ),
+    )
+    parser.add_argument(
         "--detect-whistles",
         dest="detect_whistles",
         action=argparse.BooleanOptionalAction,
@@ -336,6 +350,12 @@ def main(argv=None) -> int:
         config.shape_transients.enabled = args.shape_transients
     if args.collapse_swish is not None:
         config.collapse_swish.enabled = args.collapse_swish
+    # STORY-027 §4.3: adaptive harshness correction reachable from CLI.
+    # Default-off (AdaptiveHarshnessConfig.enabled = False) until targets.json
+    # thresholds are derived (AC5 partially satisfied — reachability delivered).
+    harshness_correction = getattr(args, "harshness_correction", None)
+    if harshness_correction is not None:
+        config.adaptive_harshness.enabled = harshness_correction
 
     for name, enabled in [
         ("repair_whistles", config.repair_whistles.enabled),

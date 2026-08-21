@@ -14,6 +14,7 @@ from .artifact_detection import (
 from .clipping import detect_clipping
 from .dynamic_range import measure_dynamic_range
 from .frequency_balance import measure_frequency_balance
+from .hf_extension import measure_hf_extension
 from .loudness import measure_integrated_lufs
 from .sanity import check_correlation_range, check_lufs_plausible
 from .stereo_phase import analyze_stereo_phase
@@ -26,7 +27,12 @@ def measure_all(audio: np.ndarray, sr: int, config) -> Measurements:
     mono (samples,) or stereo (samples, channels)) at sample rate `sr`.
     Used identically for pre-master (stage 2) and post-master (stage 9)
     analysis, per architecture.md Section 1 -- same analysis code, called
-    twice, against different buffers."""
+    twice, against different buffers.
+
+    STORY-027: also calls measure_hf_extension (wired into both pre- and
+    post-master calls per architecture §6.2).  Result is report-only;
+    no lift behaviour is applied (CLAUDE.md §6.2, Gate 1 DECISION 1).
+    """
     channels = 1 if audio.ndim == 1 else audio.shape[1]
     is_mono = channels == 1
     duration_seconds = audio.shape[0] / sr if sr else 0.0
@@ -68,6 +74,24 @@ def measure_all(audio: np.ndarray, sr: int, config) -> Measurements:
         else []
     )
 
+    # STORY-027 §6.2: HF band-limit cliff detection.  Wired into both pre- and
+    # post-master measure_all calls (ARCHITECTURE.md §2: same code path on both).
+    # Gate 1 DECISION 4: per-segment PSD stays enabled (confidence assessment
+    # distinguishes a real filter cutoff from a spurious detection).
+    # measure_hf_extension expects a ReferenceAnalysisConfig; create one on
+    # demand from the passed config (MasteringConfig).  ReferenceAnalysisConfig
+    # falls through to mastering for any attribute it doesn't define itself.
+    try:
+        from ..reference_analysis.config import ReferenceAnalysisConfig as _RefCfg
+        _ref_cfg = _RefCfg(mastering=config)
+        hf_result = measure_hf_extension(audio, sr, _ref_cfg)
+        hf_band_limit_hz = hf_result.hf_band_limit_hz
+        hf_band_limit_confidence: float | None = hf_result.hf_band_limit_confidence
+    except Exception:
+        # Never let hf_extension failure abort a mastering run.
+        hf_band_limit_hz = None
+        hf_band_limit_confidence = None
+
     return Measurements(
         sample_rate=sr,
         channels=channels,
@@ -82,4 +106,6 @@ def measure_all(audio: np.ndarray, sr: int, config) -> Measurements:
         sanity_warnings=sanity_warnings,
         artifact_detection=artifact_result,
         plausibility_warnings=artifact_warnings,
+        hf_band_limit_hz=hf_band_limit_hz,
+        hf_band_limit_confidence=hf_band_limit_confidence,
     )

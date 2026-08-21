@@ -60,6 +60,7 @@ from .io import ingest as ingest_mod
 from .mastering import adaptive_harshness as adaptive_harshness_mod
 from .mastering import corrective_eq as corrective_eq_mod
 from .mastering import dither as dither_mod
+from .mastering import dynamics_leveler as dynamics_leveler_mod
 from .mastering import loudness_limit
 from .mastering import resample as resample_mod
 from .mastering import stereo_correct as stereo_correct_mod
@@ -335,12 +336,21 @@ def master(
     # map different frequency ranges (20–120 Hz and 200–500 Hz respectively).
     _announce_story_step(3, "Lochness EQ", "targets-based corrective EQ", reporter=reporter)
     seven_band = seven_band_balance_mod.measure_seven_band_balance(audio, sr, ref_cfg)
+    # STORY-027 §5.1: extract all 7 bands (not just sub/low_mid/mid) for the report.
+    # pre_seven_band_balance is passed to build_report for the before block.
     seven_band_map = {b.band: b.relative_db for b in seven_band.bands}
     pre_band_levels = {
         "sub":     seven_band_map.get("sub", 0.0),
         "low_mid": seven_band_map.get("low_mid", 0.0),
         "mid":     seven_band_map.get("mid", 0.0),
     }
+    # Full 7-band dict preserved for reporting (all band relative_db values)
+    pre_seven_band_balance = {b.band: b.relative_db for b in seven_band.bands}
+
+    # de_mud_fired flag — needed for the seven_band_balance report block
+    _de_mud_threshold = float(targets.get("de_mud", {}).get("flag_threshold_db_above_mid", 4.0))
+    _de_mud_fired = pre_band_levels["low_mid"] > pre_band_levels["mid"] + _de_mud_threshold
+
     eq_actions: list = []
     audio, eq_actions = corrective_eq_mod.apply_corrective_eq(
         audio, sr, targets, pre_band_levels
@@ -355,6 +365,16 @@ def master(
             before.frequency_balance,
             config.adaptive_harshness,
         )
+
+    # --- [3c] Dynamics Leveling (STORY-027 §7) ---
+    # Inserted after EQ/harshness, before stereo width and the loudness solver.
+    # Returns post_leveler_dr_db always — passed to solver instead of source_dr_db.
+    # Proof: downward-only leveling reduces TT DR ⟹ dr_required_new ≤ dr_required_old
+    # (architecture §7.4).  Solver constraints are never harder than without the leveler.
+    _announce_story_step(3, "Lochness EQ", "dynamics leveling", reporter=reporter)
+    audio, leveling_action = dynamics_leveler_mod.apply_dynamics_leveler(
+        audio, sr, targets, config
+    )
 
     # --- [5a] Per-Band Stereo Width Correction ---
     _announce_story_step(4, "Reintegrate Lows", "local stereo shaping", reporter=reporter)
@@ -398,10 +418,14 @@ def master(
 
     # --- [7] dynamic range + final safety ---
     _announce_story_step(5, "Loudness Normalize", "loudness and true-peak safety", reporter=reporter)
-    # source_dr_db is the TRUE original pre-processing DR from stage [2] --
-    # deliberately not recomputed here (architecture.md Section 1 note).
+    # STORY-027 §7.4: pass post_leveler_dr_db to the solver instead of the
+    # pre-leveler source_dr_db.  This is the physically correct baseline after
+    # the leveling stage has run (even on the no-op path, the value reflects
+    # the actual buffer state).  Proof: downward-only leveling ⟹
+    # post_leveler_dr_db ≤ source_dr_db ⟹ dr_required_new ≤ dr_required_old.
+    # Gate 1 BLOCKER 1 resolved in v1.2.
     solver_outcome = loudness_limit.solve_loudness_and_limit(
-        audio, sr, source_dr_db=before.dynamic_range_db, config=config
+        audio, sr, source_dr_db=leveling_action.post_leveler_dr_db, config=config
     )
     audio = solver_outcome.audio
 
@@ -427,6 +451,12 @@ def master(
     after = analysis.measure_all(
         post_ingest_result.audio, post_ingest_result.sample_rate, config
     )
+    # STORY-027 §5.2: post-master seven-band measurement for residual_gap_db and
+    # the report's seven_band_balance.after block.  Uses the same ref_cfg as Stage [4b].
+    post_seven_band = seven_band_balance_mod.measure_seven_band_balance(
+        post_ingest_result.audio, post_ingest_result.sample_rate, ref_cfg
+    )
+    post_seven_band_balance = {b.band: b.relative_db for b in post_seven_band.bands}
     post_artifact_detection = getattr(after, "artifact_detection", None)
     after_artifact_lines: list[str] = []
     if post_artifact_detection is not None:
@@ -485,6 +515,12 @@ def master(
         integrity_verified=integrity_verified,
         stem_runtime=getattr(stem_result, "runtime_metadata", None),
         quality_review=quality_review,
+        # STORY-027 new params
+        leveling_action=leveling_action,
+        pre_seven_band_balance=pre_seven_band_balance,
+        post_seven_band_balance=post_seven_band_balance,
+        de_mud_fired=_de_mud_fired,
+        targets=targets,
     )
 
     # Built manually (not via dataclasses.asdict) to avoid deep-copying the
@@ -499,6 +535,7 @@ def master(
         "eq": eq_actions,
         "stereo_correct": stereo_actions,
         "loudness_limit": loudness_limit_action,
+        "dynamics_leveling": dataclasses.asdict(leveling_action),  # STORY-027 §7
     }
     if config.adaptive_harshness.enabled:
         actions["adaptive_harshness"] = adaptive_harshness_actions

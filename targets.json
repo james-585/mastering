@@ -38,7 +38,8 @@
         "max": 1.944311988720667
       },
       "median_db_re_mid": -3.0850478658178693,
-      "correction_cap_db": 2.0
+      "correction_cap_db": 9.0,
+      "_correction_cap_db_derivation": "STORY-027 Gate 1 (2026-08-21): 9.0 dB nominal cap. Floor derived: required_band_energy_change(4.886 dB) / delivery_efficiency(0.60) = 8.14 dB. 9.0 is the first round number above 8.14 dB providing meaningful headroom. RBJ low-shelf fc=60 Hz S=1 delivers ~0.60x of nominal over 20-60 Hz band; at 9 dB nominal, actual cut at 40 Hz ~7-8 dB, at 60 Hz ~4 dB. Audibility confirmed by mastering engineer."
     },
     "low": {
       "freq_hz": [
@@ -117,7 +118,9 @@
   "de_mud": {
     "flag_threshold_db_above_mid": 4.0,
     "correction_aim_point_db": 2.0,
-    "applies_to_band": "low_mid"
+    "applies_to_band": "low_mid",
+    "correction_cap_db": 6.52243176025526,
+    "_correction_cap_db_derivation": "STORY-027 arch §3.3: range_max_db_re_mid(8.52243176025526) - correction_aim_point_db(2.0) = 6.52243176025526. Exact, no rounding. Allows any in-range de_mud source to reach the aim point in one pass. Gate 1 confirmed aim=2.0 with this cap (2026-08-21)."
   },
   "stereo_width": {
     "sub": {
