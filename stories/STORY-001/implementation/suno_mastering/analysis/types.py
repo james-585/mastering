@@ -11,6 +11,27 @@ from typing import List, Optional
 from .sanity import SanityWarning
 
 
+# ── Shared measurement result types (also re-exported by reference_types.py) ──
+
+@dataclass
+class LraResult:
+    lra_lu: float
+    n_gated_blocks: int
+    self_consistency_delta_lu: float  # |reconstructed integrated LUFS - measure_integrated_lufs|
+
+
+@dataclass
+class PerBandWidthMeasurement:
+    band: str
+    range_hz: tuple
+    width: float  # 0 = mono/correlated, 1 = fully decorrelated (clamped to [0,1])
+
+
+@dataclass
+class PerBandWidthResult:
+    bands: List[PerBandWidthMeasurement] = field(default_factory=list)
+
+
 # ── STORY-007: Artifact detection types ──────────────────────────────────────
 
 @dataclass
@@ -138,6 +159,10 @@ class Measurements:
     # None = no cliff detected or track too short.  Report-only per CLAUDE.md §6.2.
     hf_band_limit_hz: Optional[float] = None
     hf_band_limit_confidence: Optional[float] = None
+    # Loudness Range (EBU Tech 3342 / BS.1770-4). None if audio too short for gating.
+    lra: Optional[LraResult] = None
+    # Per-band stereo width (frequency-domain coherence estimate). None for mono.
+    per_band_stereo_width: Optional[PerBandWidthResult] = None
 
 
 # ── STORY-008: Stem separation types ──────────────────────────────────────

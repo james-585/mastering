@@ -12,6 +12,28 @@ import json
 from .builder import ReportData
 
 
+_STREAMING_PLATFORMS = {
+    "Spotify":  {"lufs": -14.0, "tp_dbtp": -1.0},
+    "Apple":    {"lufs": -16.0, "tp_dbtp": -1.0},
+    "YouTube":  {"lufs": -14.0, "tp_dbtp": -1.0},
+    "Tidal":    {"lufs": -14.0, "tp_dbtp": -1.0},
+    "Amazon":   {"lufs": -14.0, "tp_dbtp": -1.0},
+}
+
+_PER_BAND_CORRELATION_LABELS = {
+    (0.7, 1.01): "mono-compatible",
+    (0.4, 0.7):  "wide/possible cancellations",
+    (0.0, 0.4):  "very wide/phase risk",
+}
+
+
+def _correlation_label(corr: float) -> str:
+    for (lo, hi), label in _PER_BAND_CORRELATION_LABELS.items():
+        if lo <= corr < hi:
+            return label
+    return ""
+
+
 def render_json(report: ReportData, indent: int = 2) -> str:
     return json.dumps(dataclasses.asdict(report), indent=indent, default=str)
 
@@ -43,6 +65,8 @@ def _measurements_section(title: str, m) -> str:
     lines.append(f"- Integrated loudness: {_fmt(m.integrated_lufs)} LUFS")
     lines.append(f"- True peak: {_fmt(m.true_peak_dbtp)} dBTP")
     lines.append(f"- Dynamic range (TT DR): DR{_fmt(m.dynamic_range_db, 0)}")
+    if m.lra is not None:
+        lines.append(f"- Loudness Range (LRA): {_fmt(m.lra.lra_lu, 1)} LU")
     lines.append(
         f"- Clipping: {m.clipping.sample_peak_clipped_count} sample(s) clipped "
         f"({m.clipping.sample_peak_clip_events} event(s)), "
@@ -58,6 +82,19 @@ def _measurements_section(title: str, m) -> str:
             f"({'compatible' if m.stereo_phase.mono_compatible else 'NOT COMPATIBLE'}), "
             f"{len(m.stereo_phase.widened_regions)} stereo-widened region(s) identified"
         )
+        if m.per_band_stereo_width is not None and m.per_band_stereo_width.bands:
+            lines.append("")
+            lines.append("Per-band stereo correlation (est.; frequency-domain coherence):")
+            lines.append("| Band | Range | Correlation | Assessment |")
+            lines.append("|---|---|---|---|")
+            for b in m.per_band_stereo_width.bands:
+                corr = 1.0 - b.width
+                lo, hi = b.range_hz
+                hi_str = f"{hi:g}" if hi is not None else "Nyquist"
+                lines.append(
+                    f"| {b.band} | {lo:g}–{hi_str} Hz | "
+                    f"{_fmt(corr, 2)} | {_correlation_label(corr)} |"
+                )
     lines.append("")
     lines.append("| Band | Range | Measured (rel. dB) | Reference (rel. dB) | Deviation | Flag |")
     lines.append("|---|---|---|---|---|---|")
@@ -344,6 +381,23 @@ def render_markdown(report: ReportData) -> str:
     lines.append("")
     lines.append(f"- Dither: TPDF, seed={report.dither_seed}")
     lines.append("")
+
+    after_lufs = report.after.integrated_lufs
+    after_tp = report.after.true_peak_dbtp
+    if after_lufs is not None and after_tp is not None:
+        lines.append("## Streaming platform normalization")
+        lines.append("")
+        lines.append("| Platform | Target LUFS | Norm. Gain | Norm. True Peak |")
+        lines.append("|---|---|---|---|")
+        for platform, tgt in _STREAMING_PLATFORMS.items():
+            norm_gain = tgt["lufs"] - after_lufs
+            norm_tp = after_tp + norm_gain
+            lines.append(
+                f"| {platform} | {tgt['lufs']:g} LUFS | "
+                f"{norm_gain:+.1f} dB | {_fmt(norm_tp, 1)} dBTP |"
+            )
+        lines.append("")
+
     lines.append("## Config used")
     lines.append("")
     lines.append("```json")

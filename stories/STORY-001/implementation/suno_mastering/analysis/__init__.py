@@ -16,6 +16,8 @@ from .dynamic_range import measure_dynamic_range
 from .frequency_balance import measure_frequency_balance
 from .hf_extension import measure_hf_extension
 from .loudness import measure_integrated_lufs
+from .loudness_range import measure_loudness_range
+from .per_band_stereo_width import measure_per_band_stereo_width
 from .sanity import check_correlation_range, check_lufs_plausible
 from .stereo_phase import analyze_stereo_phase
 from .true_peak import measure_true_peak
@@ -92,6 +94,24 @@ def measure_all(audio: np.ndarray, sr: int, config) -> Measurements:
         hf_band_limit_hz = None
         hf_band_limit_confidence = None
 
+    try:
+        from ..reference_analysis.config import ReferenceAnalysisConfig as _RefCfg
+        _ref_cfg_lra = _RefCfg(mastering=config)
+        lra_result = measure_loudness_range(audio, sr, _ref_cfg_lra)
+    except Exception:
+        lra_result = None
+
+    try:
+        from ..reference_analysis.config import ReferenceAnalysisConfig as _RefCfg
+        _ref_cfg_pbw = _RefCfg(mastering=config)
+        per_band_width_result = (
+            measure_per_band_stereo_width(audio, sr, _ref_cfg_pbw)
+            if not is_mono
+            else None
+        )
+    except Exception:
+        per_band_width_result = None
+
     return Measurements(
         sample_rate=sr,
         channels=channels,
@@ -108,4 +128,6 @@ def measure_all(audio: np.ndarray, sr: int, config) -> Measurements:
         plausibility_warnings=artifact_warnings,
         hf_band_limit_hz=hf_band_limit_hz,
         hf_band_limit_confidence=hf_band_limit_confidence,
+        lra=lra_result,
+        per_band_stereo_width=per_band_width_result,
     )

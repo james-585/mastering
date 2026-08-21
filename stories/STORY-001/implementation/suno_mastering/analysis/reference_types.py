@@ -8,14 +8,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 
 from .sanity import SanityWarning
-from .types import Measurements
-
-
-@dataclass
-class LraResult:
-    lra_lu: float
-    n_gated_blocks: int
-    self_consistency_delta_lu: float  # |reconstructed integrated LUFS - measure_integrated_lufs|
+from .types import LraResult, Measurements, PerBandWidthMeasurement, PerBandWidthResult
 
 
 @dataclass
@@ -86,18 +79,6 @@ class HfExtensionResult:
     # Use this field together with per_segment_reliability_caveat to understand whether
     # stable=False reflects genuine whole-track uncertainty or merely insufficient
     # per-segment corroboration (STORY-005 architecture.md §5.1).
-
-
-@dataclass
-class PerBandWidthMeasurement:
-    band: str
-    range_hz: tuple
-    width: float  # 0 = mono/correlated, 1 = fully decorrelated (clamped to [0,1])
-
-
-@dataclass
-class PerBandWidthResult:
-    bands: List[PerBandWidthMeasurement] = field(default_factory=list)
 
 
 @dataclass
