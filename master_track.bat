@@ -40,7 +40,7 @@ REM correction stage (default-off per STORY-027 §4.3 — threshold derivation
 REM pass pending; harshness_control.py "mix" stem fallback is a known no-op
 REM on the stereo-fallback path, but adaptive_harshness.py covers the stereo
 REM sum when --harshness-correction is passed).
-python -m suno_mastering "%INPUT%" --split-stems --stem-model htdemucs_6s --no-detect-whistles --no-repair-whistles --no-shape-transients --no-collapse-swish %*
+python -m suno_mastering "%INPUT%" --split-stems --stem-model htdemucs_6s --no-detect-whistles --no-repair-whistles --no-shape-transients --no-collapse-swish
 
 if errorlevel 2 (
     echo.

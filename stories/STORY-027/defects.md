@@ -160,7 +160,7 @@ documented here for architect review.
 
 ## DEF-027-002 — Dynamics Leveler Targets Not Yet Derived
 
-**Status:** Open  
+**Status:** Open — §7.3 procedure invalid; architect decision required  
 **Tag:** Architectural  
 **Severity:** Stage blocked (no-op until resolved)  
 **Filed:** 2026-08-21  
@@ -184,9 +184,55 @@ Neither value is present in `targets.json` as of STORY-027 implementation.
 `applied=False, reason="leveling_targets_not_derived"` and populates `post_leveler_dr_db` from
 the unchanged buffer (correct pipeline contract). The stage is fully implemented but inert.
 
-**Required action:** Run the reference-track measurement pass (architecture §7.3 procedure),
-commit `leveling.no_op_threshold_db` (median aggregation) and `leveling.max_attenuation_db`
-(listening-derived) to `targets.json`. This is a targets-derivation task, not a code change.
+**Measurement pass run 2026-08-21 — §7.3 procedure invalid for this material:**
+
+The derivation pass was executed using the exact same `_compute_block_lufs` path the runtime gate
+uses (non-overlapping 3-second blocks, per-block K-weighting, -70 LUFS absolute gate). The 100 ms
+hop sliding-window std (§7.3 literal) was also recorded.
+
+Per-track results:
+
+| Track | Block std (gate method) | Hop std (§7.3 literal) |
+|-------|------------------------|------------------------|
+| Chemical Brothers — Live Again | 4.7504 dB | 4.7295 dB |
+| GusGus — Over (Arabian Horse)  | 4.1495 dB | 3.4878 dB |
+| Black Flute (Remastered)       | 2.7365 dB | 2.7135 dB |
+| **Sunday Club (motivating)**   | **2.0179 dB** | **1.8695 dB** |
+
+Derived threshold via §7.3 `median()`:
+- Block method: **4.1495 dB**
+- Hop method: **3.4878 dB**
+
+**Sanity check FAILS:** The derived threshold (4.1 dB) is above Sunday Club's measured std
+(2.0 dB) by 2.1 dB. Committing this value would leave the stage permanently inert on Sunday
+Club — the exact track the stage was designed for. Both block and hop methods fail.
+
+**Root cause of §7.3 failure:** The procedure's rationale was that good reference masters would
+have lower loudness variation than Suno-generated material, so `median(ref_stds)` would sit below
+the motivating track's std and allow leveling to fire. The measured data shows the opposite:
+all three reference masters (professional dance/electronic productions) have substantially more
+arrangement-level loudness variation than Sunday Club (2.75–4.75 dB vs 2.02 dB). The median
+aggregator does not rescue the procedure when all three references are outliers in the wrong
+direction.
+
+**Architect decision required — two viable paths:**
+
+a. **Absolute threshold from motivating-track population.** Set `no_op_threshold_db` to a fixed
+   value below Sunday Club's measured std (2.02 dB block). Candidates: 1.0 dB (conservative),
+   1.5 dB (moderate). Document the rationale as "leveler targets Suno material, not reference
+   masters; threshold set below the lowest known motivating-track std." This replaces the §7.3
+   procedure entirely.
+
+b. **Expand the reference population to Suno material.** Measure window-LUFS std on a set of
+   Suno tracks that represent the population the leveler should not touch (already well-leveled
+   Suno outputs or Suno tracks where leveling is undesirable), take the median. This is a
+   new derivation procedure, not a correction to §7.3.
+
+In either case, `max_attenuation_db = 3.0` (§7.3 initial candidate) remains a reasonable
+starting point pending AC21 listening confirmation.
+
+**Values NOT committed to targets.json.** Committing 4.1 dB would make the stage inert on all
+Suno material below that threshold and is worse than the current "not derived" state.
 
 ---
 

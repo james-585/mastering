@@ -1,5 +1,18 @@
 # STORY-026: Spectral de-noise pre-processor for stationary tonal infestation
 
+## Status: Closed (2026-08-20) — not proceeding to architecture/implementation
+Closed at requirements stage after reviewing `requirements.md`'s own grounding.
+The central blocker (distinguishing AI-generated stationary tonal artifacts
+from musical content in a finished stereo mix — the same problem that sank
+STORY-009's `whistle_repair.py`, per open defect DEF-009-001) is not resolved
+by switching to spectral subtraction; the only proposed source of new
+discriminating evidence (level-invariance across dynamic sections) was an
+unproven hypothesis, not a design. See `requirements.md` Findings 0/6 and
+AC7 for the full analysis. Retained here for reference in case a future
+story revisits this with a stronger evidentiary basis (e.g. committing to
+per-stem placement post-separation, per Open Question 4, rather than
+operating on the stereo sum).
+
 ## User Story
 As the product owner, I want a spectral de-noise pre-processing stage that learns the noise profile of stationary tones from quiet sections of a track and subtracts them via Wiener filtering before the rest of the mastering chain runs, so that tracks with dense, sustained tonal/whistle infestation get cleaned up properly instead of relying on the current notch-based spot repair.
 

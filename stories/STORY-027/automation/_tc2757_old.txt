@@ -1,0 +1,77 @@
+class TestTC2757:
+    """TC-2757: Drop-entrance gain trajectory: 1.5s IIR time constant.
+
+    Uses a dedicated inline fixture to reliably trigger attenuation:
+    - 18 s quiet pre-section at -24 dBFS (6 windows, mean dominated by quiet)
+    - 9 s loud burst at -6 dBFS (3 windows, 18 dB above mean → large attenuation)
+    This guarantees mean_L ≈ -22 LUFS, burst LUFS ≈ -7 LUFS, gain ≈ -15 dB.
+
+    F-09 (5s quiet + 30s loud) was unusable: the 30s loud section dominates the
+    mean, so burst windows are at the mean → zero attenuation → no gain ramp.
+    """
+
+    def test_gain_smooths_toward_target(self):
+        """Verify gain ramps smoothly (not instant step) at loud burst entrance."""
+        sr = 44100
+        win_s = 3.0
+        win_len = int(sr * win_s)
+        t = np.arange(win_len) / sr
+        # 6 quiet windows at -24 dBFS, then 3 loud windows at -6 dBFS
+        quiet_amp = 10 ** (-24.0 / 20.0)
+        loud_amp  = 10 ** (-6.0  / 20.0)
+        quiet_chunk = quiet_amp * np.sin(2 * np.pi * 440.0 * t)
+        loud_chunk  = loud_amp  * np.sin(2 * np.pi * 440.0 * t)
+        mono = np.concatenate([quiet_chunk] * 6 + [loud_chunk] * 3)
+        audio = np.stack([mono, mono], axis=1).astype(np.float64)
+
+        targets = _targets_with_leveling(no_op=0.5, max_att=20.0)
+        out, action = apply_dynamics_leveler(audio, sr, targets, MasteringConfig())
+        assert action.applied is True, "Leveler did not fire"
+        assert action.max_gain_db_applied < 0.0, "No attenuation applied on loud burst"
+
+        # Derive gain envelope from RMS ratio over 50 ms windows to avoid
+        # zero-crossing contamination (single-sample ratio is unreliable at zero crossings)
+        mono_in  = audio[:, 0]
+        mono_out = out[:, 0]
+        n_total  = len(mono_in)
+
+        # Burst starts at 18 s (sample index 18*sr); first burst window is 18-21 s
+        t0_sample = int(18.0 * sr)
+
+        def gain_db_rms(center_sample: int, half_win: int = 2205) -> float:
+            """RMS-based gain estimate (50 ms window, robust to zero crossings)."""
+            s = max(0, center_sample - half_win)
+            e = min(n_total, center_sample + half_win)
+            in_rms  = float(np.sqrt(np.mean(mono_in[s:e] ** 2)))
+            out_rms = float(np.sqrt(np.mean(mono_out[s:e] ** 2)))
+            if in_rms < 1e-12:
+                return 0.0
+            return 20.0 * np.log10(max(out_rms / in_rms, 1e-10))
+
+        # G_final: steady-state gain from last 2 s of signal
+        final_center = n_total - int(1.0 * sr)
+        g_final_db = gain_db_rms(final_center)
+        if g_final_db >= -0.1:
+            pytest.skip("No attenuation in burst section — fixture problem")
+
+        g0   = gain_db_rms(t0_sample + int(0.05 * sr))   # just inside burst window
+        g1_5 = gain_db_rms(t0_sample + int(1.5  * sr))
+        g3_0 = gain_db_rms(t0_sample + int(3.0  * sr))
+
+        # At t0 (start of burst window), IIR should still be close to 0 dB
+        assert g0 > g_final_db * 0.5, (
+            f"Gain at t=0 ({g0:.2f} dB) settled too fast: IIR should start from near 0 dB"
+        )
+        # At τ (1.5s), gain should be ≈ 63.2% of G_final (first-order IIR step response)
+        if g_final_db < -0.1:
+            denom = g0 - g_final_db
+            settled_frac_1_5 = (g0 - g1_5) / denom if denom != 0 else 0
+            settled_frac_3_0 = (g0 - g3_0) / denom if denom != 0 else 0
+            assert 0.45 <= settled_frac_1_5 <= 0.80, (
+                f"Settled fraction at τ=1.5s: {settled_frac_1_5:.2f} "
+                f"(expected ≈ 0.632 ± 0.07 for IIR τ=1.5s)"
+            )
+            assert 0.70 <= settled_frac_3_0 <= 0.95, (
+                f"Settled fraction at 2τ=3.0s: {settled_frac_3_0:.2f} "
+                f"(expected ≈ 0.865 ± 0.07)"
+            )
