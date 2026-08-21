@@ -160,7 +160,7 @@ documented here for architect review.
 
 ## DEF-027-002 — Dynamics Leveler Targets Not Yet Derived
 
-**Status:** Open — §7.3 procedure invalid; architect decision required  
+**Status:** Fixed-Pending-Retest — threshold committed; max_attenuation_db pending AC21 listening  
 **Tag:** Architectural  
 **Severity:** Stage blocked (no-op until resolved)  
 **Filed:** 2026-08-21  
@@ -233,6 +233,12 @@ starting point pending AC21 listening confirmation.
 
 **Values NOT committed to targets.json.** Committing 4.1 dB would make the stage inert on all
 Suno material below that threshold and is worse than the current "not derived" state.
+
+**Architect resolution (2026-08-21):** Path a selected. `no_op_threshold_db = 1.0 dB` committed to
+`targets.json` — absolute threshold calibrated to Suno material, below Sunday Club's measured std
+(2.02 dB). §7.3 procedure abandoned for this target; architecture.md §7.3 updated to document the
+corrected derivation. `max_attenuation_db = 3.0` committed as §7.3 initial candidate; AC21 listening
+confirmation still required before this defect can be fully closed.
 
 ---
 

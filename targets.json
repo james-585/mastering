@@ -122,6 +122,12 @@
     "correction_cap_db": 6.52243176025526,
     "_correction_cap_db_derivation": "STORY-027 arch §3.3: range_max_db_re_mid(8.52243176025526) - correction_aim_point_db(2.0) = 6.52243176025526. Exact, no rounding. Allows any in-range de_mud source to reach the aim point in one pass. Gate 1 confirmed aim=2.0 with this cap (2026-08-21)."
   },
+  "leveling": {
+    "no_op_threshold_db": 1.0,
+    "_no_op_threshold_db_derivation": "STORY-027 DEF-027-002 (2026-08-21): §7.3 median() procedure was invalid — reference masters (4.75, 4.15, 2.74 dB block std) all exceed Sunday Club's std (2.02 dB), making the median threshold higher than the motivating track. Replaced with absolute threshold calibrated to Suno material: 1.0 dB, below the lowest known motivating-track std (Sunday Club 2.02 dB). Fires on any track with >1 dB arrangement-level loudness variation. Measurement method: _compute_block_lufs (non-overlapping 3-second blocks, per-block K-weighting, -70 LUFS absolute gate) — same function used by the runtime gate.",
+    "max_attenuation_db": 3.0,
+    "_max_attenuation_db_derivation": "STORY-027 §7.3 initial candidate (2026-08-21): 3.0 dB. NOT yet confirmed by listening test. AC21 must verify at 1.5-second smoothing time constant on Sunday Club; pumping at section boundaries may require this value to be revised downward."
+  },
   "stereo_width": {
     "sub": {
       "min": 0.001253139414907456,

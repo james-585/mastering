@@ -1,8 +1,8 @@
 # STORY-027 Architecture — Close the Spectral and Dynamics Correction Gaps
 
-**Version:** 1.3
-**Date:** 2026-08-21
-**Status:** Draft — three architectural defects resolved (DEF-027-001, -002, -003)
+**Version:** 1.4
+**Date:** 2026-08-22
+**Status:** Draft — §7.3 no_op_threshold_db derivation corrected (DEF-027-002)
 
 ---
 
@@ -534,32 +534,50 @@ not hardcoded — they must be sample-rate-correct or the K-weighting is wrong.
 Both values come from the targets.json `leveling` block. Neither may be hardcoded
 in stage source per ARCHITECTURE.md §3.4.
 
-**`leveling.no_op_threshold_db` — derivation procedure:**
+**`leveling.no_op_threshold_db` — derivation (DEF-027-002 resolution, 2026-08-21):**
+
+**The v1.3 median() procedure was tried and failed.** The procedure specified in
+v1.3 (median of block-LUFS std across the three reference tracks) was executed
+using `_compute_block_lufs` (non-overlapping 3-second blocks, per-block
+K-weighting, -70 LUFS absolute gate — the same function the runtime gate uses).
+Results:
+
+| Track | Block-LUFS std |
+|-------|----------------|
+| Chemical Brothers — Live Again | 4.75 dB |
+| GusGus — Over (Arabian Horse) | 4.15 dB |
+| Black Flute (Remastered) | 2.74 dB |
+| **Sunday Club (motivating)** | **2.02 dB** |
+
+`median(4.75, 4.15, 2.74) = 4.15 dB` — above Sunday Club's std of 2.02 dB.
+Committing 4.15 dB would leave the leveling stage permanently inert on the
+motivating track. Root cause: the procedure assumed reference masters would have
+lower loudness variation than Suno-generated material. The opposite is true:
+all three reference masters (professional dance/electronic productions) have
+substantially more arrangement-level dynamics than Sunday Club. The median
+aggregator does not rescue the procedure when all three references are outliers
+in the wrong direction.
+
+**Replacement: absolute threshold calibrated to Suno material (DEF-027-002 path a).**
 
 ```
-For each of the three target-derivation reference tracks:
-  1. Apply K-weighting (same procedure as §7.2 Step 1).
-  2. Compute L[n] with 3 s window, 100 ms hop (same as §7.2 Step 1).
-  3. std_L(ref_i) = std of finite L[n] values.
-
-no_op_threshold_db = median(std_L[ref_1], std_L[ref_2], std_L[ref_3])
+no_op_threshold_db = 1.0 dB
 ```
 
-**Aggregator confirmed as `median()` (not `max()`):** Using `max()` would set
-the threshold at or above the highest reference track's std. If any reference
-track's std exceeds the motivating track's std (1.59 dB for Sunday Club),
-`max()` would disable leveling on the very population the stage targets.
-`median()` is immune to a single outlier reference track. This is not a
-contingency — it is the specified aggregator.
+Derivation: 1.0 dB is below Sunday Club's measured block-LUFS std (2.02 dB),
+the lowest known motivating-track std. The leveler fires on any track with more
+than 1.0 dB arrangement-level loudness variation — conservative enough to avoid
+false triggers on uniformly-produced Suno outputs. The median() procedure is
+abandoned for this target; the reference-master population is not the correct
+reference population for a leveler that targets Suno-generated material.
 
-The derivation pass must record: per-track std values, aggregator used, and
-final threshold. If all three reference values are substantially below 1.59 dB
-(e.g., all below 0.5 dB), the threshold may be conservatively too low — flag
-for mastering-engineer review.
+Measurement method used for this threshold: `_compute_block_lufs`
+(non-overlapping 3-second blocks, per-block K-weighting, -70 LUFS absolute
+gate) — the same function the runtime gate uses, ensuring threshold and gate
+use identical measurement.
 
-The measurement procedure for reference tracks must use the same K-weighted
-ungated method as §7.2 (not `integrated_loudness`) so the threshold and the
-stage use the same measurement method.
+Committed to `targets.json` 2026-08-21. Revisit trigger: when >=3 Suno
+motivating-population tracks are measured, recalibrate against that population.
 
 **`leveling.max_attenuation_db` — derivation and initial candidate:**
 
@@ -579,8 +597,9 @@ changes at approximately 2 dB/s — within the temporal masking threshold for
 most material. Inter-section loudness variation in Suno tracks typically spans
 6–10 LU; a 3 dB ceiling corrects roughly half of a typical swing without
 forcing a second-pass correction. This is an empirical starting point, not a
-derived value — the mastering engineer's listening test may revise it. The value
-is not planted in `targets.json` until the listening pass confirms it.
+derived value — the mastering engineer's listening test may revise it. Committed
+to `targets.json` 2026-08-21 as the §7.3 initial candidate; AC21 listening
+confirmation is still required.
 
 ### 7.4 Maximum attenuation cap and DR interaction
 
@@ -818,13 +837,15 @@ and a human listening result supports the change.
 4. **AC5 partially satisfied** (§4.3): Reachability delivered; default-fire
    deferred. QA must not mark AC5 fully met.
 
-5. **no_op_threshold_db derivation pass pending** (§7.3): Stage is inert until
-   this runs. Derivation must use the K-weighted ungated method (§7.2) — not
-   `integrated_loudness` — to be consistent with the stage's own measurement.
-   `median()` aggregation confirmed.
+5. **no_op_threshold_db calibrated to single track** (§7.3): Value 1.0 dB is
+   calibrated against Sunday Club alone. When ≥3 Suno motivating-population
+   tracks are measured, recalibrate against that population. The current value
+   is conservative (below the one known motivating-track std by 1.02 dB) and
+   will fire on any track with >1 dB arrangement-level variation.
 
 6. **max_attenuation_db listening test pending** (§7.3, §7.4): Initial candidate
-   3.0 dB for first listening pass. Stage is inert until committed to targets.json.
+   3.0 dB committed to targets.json. AC21 listening confirmation still required;
+   pumping at section boundaries may require downward revision.
 
 7. **hf_extension runtime cost** (§6.2): Two full PSD+segment calls per run.
    Gate 1 to decide whether per-segment analysis is config-gated.
@@ -873,9 +894,9 @@ Gate 1 review is **mandatory** before implementation, for:
 - **Item 2 (harshness reachability):** Confirm reachable-but-default-off
   approach; confirm thresholds routed to targets.json derivation.
 - **Item 3 (HF rejection — confirmed):** Recorded as Gate 1 decision.
-- **Item 4 (targets.json derivation):** Confirm `no_op_threshold_db` derivation
-  procedure (median() of K-weighted ungated std across 3 reference tracks, §7.3)
-  and `max_attenuation_db` initial candidate of 3.0 dB for listening pass.
+- **Item 4 (targets.json derivation):** `no_op_threshold_db = 1.0 dB` committed
+  per DEF-027-002 path a (§7.3 v1.4). `max_attenuation_db = 3.0 dB` committed
+  as initial candidate; AC21 listening confirmation still required.
 - **Item 4 (DR handoff):** Confirm that passing `post_leveler_dr_db` to the
   solver is acceptable under STORY-006/STORY-025 contracts. Confirm that
   EQ-induced DR increases (DEF-027-003) are treated as accurate calibration.
@@ -917,12 +938,13 @@ All items are independently testable against synthetic signals:
 2. No sub.correction_cap_db value is asserted. Floor is ≥8.14 dB per §3.2
    derivation. Mastering engineer decides final value by listening.
 
-3. `leveling.max_attenuation_db` initial candidate is 3.0 dB (§7.3). This
-   value is not planted in targets.json until the listening pass confirms it.
+3. `leveling.max_attenuation_db` initial candidate is 3.0 dB (§7.3). Committed
+   to targets.json 2026-08-21. AC21 listening confirmation still required.
 
-4. `leveling.no_op_threshold_db` uses `median()` aggregation of K-weighted
-   ungated std across 3 reference tracks. The measurement procedure must match
-   §7.2 (not integrated_loudness).
+4. `leveling.no_op_threshold_db = 1.0 dB` is committed to targets.json
+   2026-08-21 per DEF-027-002 path a. The §7.3 median() procedure over reference
+   tracks is abandoned for this target. Recalibration required when ≥3 Suno
+   motivating-population tracks are available.
 
 5. The solver change (post_leveler_dr_db replacing source_dr_db) is backward-
    compatible. Gate 1 must confirm that EQ-induced DR increases (producing
@@ -978,3 +1000,20 @@ All items are independently testable against synthetic signals:
     and §3.4 updated to reflect that efficiency compensation is now in the
     implementation path; action.applied_db stores expected delivered band-level
     change (not filter design parameter). Low_mid path confirmed non-compensating.
+- 2026-08-22 v1.4: DEF-027-002 architect resolution — §7.3 no_op_threshold_db
+  derivation corrected:
+  - §7.3: v1.3 median() procedure over reference tracks was executed and failed.
+    All three reference masters (Chemical Brothers 4.75 dB, GusGus 4.15 dB,
+    Black Flute 2.74 dB block-LUFS std) exceed Sunday Club's std (2.02 dB);
+    median()=4.15 dB would suppress leveling on the motivating track. Procedure
+    abandoned. Replaced with absolute threshold calibrated to Suno material:
+    no_op_threshold_db = 1.0 dB (DEF-027-002 path a), committed to targets.json.
+  - §11: Risk 5 updated — median() procedure replaced; calibration note added.
+  - §12: Gate 1 item 4 updated to reflect committed values.
+  - §14: Assumption 4 updated to reflect committed value and abandonment of
+    median() procedure.
+  - Implementation note: targets.json now has the leveling block with
+    no_op_threshold_db=1.0. The stage is no longer inert. If the implementation
+    was relying on the "leveling_targets_not_derived" inert path, it will now
+    execute — verify TC-2761 (second-pass no-op) and TC-2752 (gated windows)
+    still pass with the threshold in place.
