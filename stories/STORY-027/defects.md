@@ -365,6 +365,65 @@ All CLI arguments passed to the bat file are now forwarded verbatim to `cli.py`,
 
 ---
 
+## DEF-027-008 — adaptive_harshness sosfiltfilt Delivers 2× Configured Gain
+
+**Status:** Fixed-Pending-Retest
+**Tag:** Code-level (design-parameter convention mismatch)
+**Severity:** High — blocked default-on; when enabled, stage was applying double the intended correction
+**Filed:** 2026-08-22
+**Source:** STORY-027 threshold derivation pass; documented in AdaptiveHarshnessAction docstring
+
+**Description:**
+
+Both filter constructors in `adaptive_harshness.py` pass `gain_db / 40.0` as the RBJ `a`
+parameter (line 78 for `_peaking_sos`, line 94 for `_low_shelf_sos`). The RBJ formula with
+this convention delivers `gain_db` at ω₀ in a single-pass filter. However, `apply_adaptive_harshness`
+uses `sosfiltfilt` (forward + backward pass), which doubles the gain, delivering `2 × gain_db`
+at ω₀.
+
+This is documented in the `AdaptiveHarshnessAction` docstring:
+> "gain_db/40 is passed to the RBJ formula, giving gain_db at ω0 single-pass and 2×gain_db
+>  after sosfiltfilt — the discrepancy is a pre-existing STORY-010 design issue"
+
+**Consequence:**
+- `narrow_gain_db = -3.0` → actual cut ≈ **-6 dB** at ω₀
+- `broad_gain_db = -2.0` → actual cut ≈ **-4 dB** at ω₀
+- `max_gain_db = 4.0` caps the design parameter, not the delivered gain; effective ceiling ≈ **8 dB**
+
+The `after_db = before_db + gain_db` estimate in `AdaptiveHarshnessAction` is also wrong by 2×
+(understates the correction actually applied).
+
+`targets.json` `broad_gain_db` and `narrow_gain_db` derivation strings note this defect and
+flag the values as uncalibrated until this is resolved.
+
+**Inert while default-off.** This defect does not affect any track processed without
+`--harshness-correction`.
+
+**Required fix (H6 — method change):** Use `gain_db / 2.0` as the design parameter to the
+RBJ constructors so that `sosfiltfilt`'s doubling yields the intended `gain_db` at ω₀.
+Update `applied_db` population in both action sites to `gain_db` (no further change needed;
+the value already equals the intended delivered gain after the fix). Update the docstring.
+Verify with a unit test: apply `_peaking_sos` at gain_db=-3.0 via `sosfiltfilt` on
+band-limited noise at f₀=3162 Hz, measure band-energy delta, assert it is within ±0.5 dB
+of -3.0 dB.
+
+**Fix notes:** (2026-08-22)
+Method change (H6 compliant). Both RBJ call sites in `apply_adaptive_harshness()` now pass
+`gain_db / 2` as the design parameter: `_low_shelf_sos(sr, f0, gain_db / 2)` for the
+broad_shelf branch and `_peaking_sos(sr, f0, gain_db / 2, bw)` for the narrow_cut branch.
+`sosfiltfilt`'s forward+backward doubling then yields the intended `gain_db` at ω₀. Matches
+the corrective_eq.py convention. Docstring updated to document the convention rather than flag
+a bug. `targets.json` derivation strings updated to remove the "uncalibrated" caveat for
+`broad_gain_db` and `narrow_gain_db` (the values are now delivered as configured).
+Two new tests added to `test_story010_adaptive_harshness.py`:
+- `test_tc_def027008_peaking_gain_delivery`: sinusoid at 3162 Hz, peaking sos, asserts
+  delivered gain within ±0.5 dB of configured gain_db=-3.0. PASSES.
+- `test_tc_def027008_shelf_gain_delivery`: sinusoid at 100 Hz, low-shelf sos at fc=3500 Hz,
+  asserts delivered gain within ±0.5 dB of configured gain_db=-2.0. PASSES.
+All 6 harshness tests pass at 6/6.
+
+---
+
 ## DEF-027-006 — AdaptiveHarshnessAction Missing Spec-Required Fields
 
 **Status:** Fixed-Pending-Retest  

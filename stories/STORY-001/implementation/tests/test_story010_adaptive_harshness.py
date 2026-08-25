@@ -1,10 +1,15 @@
 import numpy as np
+from scipy.signal import sosfiltfilt
 
 from suno_mastering.analysis.types import BandMeasurement, FrequencyBalanceResult
 from suno_mastering.mastering.adaptive_harshness import (
     AdaptiveHarshnessConfig,
     AdaptiveHarshnessAction,
     apply_adaptive_harshness,
+    _peaking_sos,
+    _low_shelf_sos,
+    _band_center_hz,
+    _band_width_octaves,
 )
 
 
@@ -55,3 +60,36 @@ def test_tc0105_action_logs_method_and_reason():
     assert isinstance(action, AdaptiveHarshnessAction)
     assert action.method in {"broad_shelf", "narrow_cut"}
     assert action.reason in {"broad_brighness", "narrow_resonance"}
+
+
+# DEF-027-008: verify sosfiltfilt delivers gain_db at ω₀, not 2×gain_db.
+
+def test_tc_def027008_peaking_gain_delivery():
+    """_peaking_sos with gain_db/2 design parameter + sosfiltfilt delivers gain_db at ω₀ ±0.5 dB."""
+    sr = 44100
+    f0 = _band_center_hz((2000.0, 5000.0))  # ≈ 3162 Hz
+    bw = _band_width_octaves((2000.0, 5000.0))
+    gain_db = -3.0
+    t = np.linspace(0, 2.0, int(sr * 2), endpoint=False)
+    x = np.sin(2 * np.pi * f0 * t)
+    sos = _peaking_sos(sr, f0, gain_db / 2, bw)
+    y = sosfiltfilt(sos, x)
+    i0 = int(0.1 * sr)
+    delivered_db = 20 * np.log10(np.sqrt(np.mean(y[i0:] ** 2)) / np.sqrt(np.mean(x[i0:] ** 2)))
+    assert abs(delivered_db - gain_db) < 0.5, f"Delivered {delivered_db:.3f} dB, expected {gain_db:.1f} dB"
+
+
+def test_tc_def027008_shelf_gain_delivery():
+    """_low_shelf_sos with gain_db/2 design parameter + sosfiltfilt delivers gain_db at low freq ±0.5 dB."""
+    sr = 44100
+    f0_shelf = 3500.0
+    gain_db = -2.0
+    # Measure delivered gain at a low frequency well below the shelf corner (100 Hz).
+    f_measure = 100.0
+    t = np.linspace(0, 2.0, int(sr * 2), endpoint=False)
+    x = np.sin(2 * np.pi * f_measure * t)
+    sos = _low_shelf_sos(sr, f0_shelf, gain_db / 2)
+    y = sosfiltfilt(sos, x)
+    i0 = int(0.1 * sr)
+    delivered_db = 20 * np.log10(np.sqrt(np.mean(y[i0:] ** 2)) / np.sqrt(np.mean(x[i0:] ** 2)))
+    assert abs(delivered_db - gain_db) < 0.5, f"Delivered {delivered_db:.3f} dB, expected {gain_db:.1f} dB"

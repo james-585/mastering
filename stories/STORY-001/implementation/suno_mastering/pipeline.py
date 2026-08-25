@@ -364,6 +364,7 @@ def master(
             sr,
             before.frequency_balance,
             config.adaptive_harshness,
+            targets,
         )
 
     # --- [3c] Dynamics Leveling (STORY-027 §7) ---

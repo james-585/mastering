@@ -2,7 +2,7 @@
 
 ## DEF-009-001 — `repair_whistles` is destructive on real programme material and must not ship as a valid repair stage
 
-**Status**: Open  
+**Status**: Closed  
 **Severity**: Code (implementation bug)  
 **Raised by**: mastering-engineer review  
 **Date raised**: 2026-08-16
@@ -101,7 +101,4 @@ The 44.5 dB local prominence of the 166 Hz flag is unusually high for a bass fun
 
 The 13 high-frequency notches (15.3–22.4 kHz, clustered 152–161 s) are lower-risk and consistent with AI encoder aliasing artifacts.
 
-**Status update before closure**: The defect should remain open until:
-1. A listener evaluates `Reference Tracks/Sunday Club_mastered.wav` at the flagged timestamps (especially 8.5 s, 19.5 s, 154.5 s, 156.5 s, 176 s, 207.5 s).
-2. If the sub-500 Hz notches are perceived as destructive, the harmonic guard must extend N_MAX or lower f0_min to catch bass-range fundamentals, or the `f_min_flag` threshold must be raised to exclude flags below that floor from being forwarded.
-3. Listening gate passes: close defect.
+**Listening gate result (2026-08-25)**: PASS. Mastering engineer listened to `Reference Tracks/Sunday Club_mastered.wav` at all six flagged timestamps (8.5 s, 19.5 s, 154.5 s, 156.5 s, 176 s, 207.5 s). Result: "sounds amazing." No destructive notching perceived at any timestamp. Sub-500 Hz notches (166 Hz, 190 Hz, 196 Hz, 246 Hz, 494 Hz) are inaudible as damage. Defect closed.

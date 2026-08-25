@@ -35,11 +35,8 @@ REM explicit stem-level issue identification in Stage 2. Stem separation
 REM always runs the 6-stem HTDemucs model (piano/guitar isolation); the
 REM four-stem models remain available via --stem-model overrides.
 REM
-REM Optional: add --harshness-correction to enable the adaptive 2-5 kHz
-REM correction stage (default-off per STORY-027 §4.3 — threshold derivation
-REM pass pending; harshness_control.py "mix" stem fallback is a known no-op
-REM on the stereo-fallback path, but adaptive_harshness.py covers the stereo
-REM sum when --harshness-correction is passed).
+REM Adaptive harshness correction (2-5 kHz) is DEFAULT ON (2026-08-25).
+REM Pass --no-harshness-correction to disable if a track sounds over-corrected.
 python -m suno_mastering "%INPUT%" --split-stems --stem-model htdemucs_6s --no-detect-whistles --no-repair-whistles --no-shape-transients --no-collapse-swish %*
 
 if errorlevel 2 (

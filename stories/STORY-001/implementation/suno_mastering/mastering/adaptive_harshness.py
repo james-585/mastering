@@ -18,10 +18,16 @@ STORY-010 third branch (reference-target mismatch, TC-0103): NOT implemented.
 Explicitly deferred per STORY-027 architecture §4.4.  The two implemented branches
 (broad_shelf, narrow_cut) are the only active classification paths.
 
-Concern 3 (Gate 1): presence_harsh.reference_db is -4.0 dB (round number) while
-the seven-band high_mid median is -6.714 dB (reference-derived) — both cover
-2000-5000 Hz but disagree by 2.7 dB.  This must be reconciled before the stage
-can be enabled by default.  Routed to the targets-derivation process.
+Concern 3 (Gate 1 — partially resolved 2026-08-22): presence_harsh.reference_db
+is -4.0 dB while the seven-band high_mid median is -6.714 dB — both cover
+2000-5000 Hz but disagree by 2.7 dB.  The reference_db is intentionally NOT
+changed (it is a measurement-contract field consumed by frequency_balance.py and
+the full analysis report; changing it would shift the harshness flag trigger on
+every track).  narrow_threshold_db is now derived in targets.json as
+range_max_high_mid − reference_db = 2.756540113336035 dB, which fires when the
+track's 2–5 kHz level reaches the top of the reference population range.
+broad_threshold_db remains an admitted placeholder (no population evidence).
+Default-on blocked by DEF-027-008 (sosfiltfilt gain doubling).
 
 Note: harshness_control.py (STORY-012) is the stem-supplemental path; its
 _band_edges("mix") fallback (2500, 5000 Hz) is a known no-op on the stereo-
@@ -39,10 +45,9 @@ from ..analysis.types import FrequencyBalanceResult
 
 @dataclass
 class AdaptiveHarshnessConfig:
-    enabled: bool = False
-    # WARNING: these are round-number placeholders, not reference-derived values.
-    # They must NOT be moved to default-on until transferred to targets.json with
-    # derivations (STORY-027 architecture §4.3, Gate 1 DECISION 5).
+    enabled: bool = True
+    # Threshold/gain values are overridden at runtime from targets.json harshness block.
+    # Fallback defaults retained here for callers that do not pass targets.
     broad_threshold_db: float = 5.0
     narrow_threshold_db: float = 2.5
     broad_gain_db: float = -2.0
@@ -61,13 +66,10 @@ class AdaptiveHarshnessAction:
     # before_db: presence_harsh.relative_db measured before filter is applied.
     # after_db: estimated band level after filter (before_db + gain_db at centre).
     # classification: same as method — "broad_shelf" or "narrow_cut".
-    # applied_db: gain delivered at centre frequency (equals gain_db; filter is
-    #   designed for sosfiltfilt double-pass, so gain_db is the nominal delivered
-    #   value at ω0 — see corrective_eq.py for the /2 design-parameter convention
-    #   used by the STORY-006 path; this path uses a different convention where
-    #   gain_db/40 is passed to the RBJ formula, giving gain_db at ω0 single-pass
-    #   and 2×gain_db after sosfiltfilt — the discrepancy is a pre-existing
-    #   STORY-010 design issue, not introduced here).
+    # applied_db: gain delivered at centre frequency (equals gain_db).
+    #   Design convention (DEF-027-008 fix, 2026-08-22): gain_db/2 is passed to the
+    #   RBJ constructor so that sosfiltfilt's forward+backward pass doubles it back to
+    #   gain_db at ω0. Matches corrective_eq.py convention.
     before_db: float = 0.0
     after_db: float = 0.0
     classification: str = ""
@@ -122,10 +124,24 @@ def apply_adaptive_harshness(
     sr: int,
     freq_balance: FrequencyBalanceResult,
     config: AdaptiveHarshnessConfig | None = None,
+    targets: dict | None = None,
 ):
     config = config or AdaptiveHarshnessConfig()
     if not config.enabled:
         return audio.copy(), []
+
+    # Override threshold/gain values from targets.json harshness block when present.
+    # Derivation strings (keys starting with "_") are ignored. "enabled" is not overridden.
+    harshness_t = (targets or {}).get("harshness") or {}
+    if harshness_t:
+        config = AdaptiveHarshnessConfig(
+            enabled=config.enabled,
+            narrow_threshold_db=float(harshness_t.get("narrow_threshold_db", config.narrow_threshold_db)),
+            broad_threshold_db=float(harshness_t.get("broad_threshold_db", config.broad_threshold_db)),
+            broad_gain_db=float(harshness_t.get("broad_gain_db", config.broad_gain_db)),
+            narrow_gain_db=float(harshness_t.get("narrow_gain_db", config.narrow_gain_db)),
+            max_gain_db=float(harshness_t.get("max_gain_db", config.max_gain_db)),
+        )
 
     if sr <= 0:
         raise ValueError("Invalid sample rate")
@@ -140,7 +156,7 @@ def apply_adaptive_harshness(
         gain_db = -min(abs(config.broad_gain_db), config.max_gain_db)
         f0 = 3500.0
         before_db = float(presence.relative_db)
-        sos = _low_shelf_sos(sr, f0, gain_db)
+        sos = _low_shelf_sos(sr, f0, gain_db / 2)  # /2: sosfiltfilt doubles back to gain_db
         out = sosfiltfilt(sos, out, axis=0)
         actions.append(AdaptiveHarshnessAction(
             method="broad_shelf",
@@ -160,7 +176,7 @@ def apply_adaptive_harshness(
         f0 = _band_center_hz(presence.range_hz)
         bw = _band_width_octaves(presence.range_hz)
         before_db = float(presence.relative_db)
-        sos = _peaking_sos(sr, f0, gain_db, bw)
+        sos = _peaking_sos(sr, f0, gain_db / 2, bw)  # /2: sosfiltfilt doubles back to gain_db
         out = sosfiltfilt(sos, out, axis=0)
         actions.append(AdaptiveHarshnessAction(
             method="narrow_cut",

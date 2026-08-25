@@ -306,19 +306,42 @@ reference-derived and is inadequate as a primary path. `harshness_control.py`'s
 "mix" fallback produces zero actions in the stereo-fallback path and must be
 documented as a known no-op for that case.
 
-### 4.3 Gate 1 blocker — thresholds must move to targets.json before default-on
+### 4.3 Threshold derivation pass (2026-08-22)
 
-`AdaptiveHarshnessConfig` carries hardcoded round-number constants
-(`broad_threshold_db: 5.0`, etc.). When default-off these were inert; if made
-default-on they become live spectral targets violating CLAUDE.md §7 and
-ARCHITECTURE.md §3.4.
+Threshold derivation completed in the same story (session continuation). Status:
 
-**For this story:** Make the stage reachable via `--harshness-correction` in
-`cli.py` and `%*` passthrough in `master_track.bat`. Keep `enabled = False`
-default. Thresholds routed to targets-derivation process for future default-on.
+**`narrow_threshold_db` — reference-derived:**
+```
+range_max_high_mid_db_re_mid (−1.243459886663965)
+  − presence_harsh.reference_db (−4.0)
+= 2.756540113336035
+```
+Fires when the track's 2–5 kHz presence level is at or above the top of the
+reference population range (Chemical Brothers — Live Again sits exactly at this
+level). Committed to `targets.json harshness.narrow_threshold_db`.
+`apply_adaptive_harshness()` now reads this from `targets` dict at call time.
 
-**AC5 partial satisfaction:** Reachability delivered; firing-by-default deferred.
-QA must not read AC5 as fully met.
+**`broad_threshold_db` — admitted placeholder (5.0):**
+No reference-population evidence for broad harshness. All three reference tracks
+have deviation_db ≤ 2.756 from reference_db(−4.0). 5.0 dB retains the STORY-010
+placeholder. A Suno-population measurement of N≥10 tracks with confirmed harshness
+is required before this value can be considered derived.
+
+**Gain values (`broad_gain_db`, `narrow_gain_db`, `max_gain_db`) — listening-set,
+not reference-derived.** Committed to `targets.json` with explicit derivation
+strings noting they are uncalibrated pending DEF-027-008 resolution.
+
+**DEF-027-008 — sosfiltfilt double-pass (Fixed 2026-08-22):**
+Both RBJ call sites now pass `gain_db / 2` as the design parameter; `sosfiltfilt`
+doubles back to `gain_db` at ω₀. Delivery verified by unit tests: peaking at 3162 Hz
+delivers −3.0 dB ±0.5 dB; low-shelf below 3500 Hz delivers −2.0 dB ±0.5 dB.
+`max_gain_db=4.0` now correctly caps the delivered gain at 4.0 dB (not 8.0 dB).
+
+**Remaining `enabled = False` default.** One gate remains before default-on:
+- `broad_threshold_db` population-derived value (N≥10 Suno tracks with confirmed harshness).
+
+**AC5 partial satisfaction:** Reachability delivered (STORY-027). `narrow_threshold_db`
+now reference-derived. Default-fire blocked by DEF-027-008. QA must not mark AC5 fully met.
 
 ### 4.4 STORY-010 third branch (reference-target mismatch)
 
@@ -831,11 +854,14 @@ and a human listening result supports the change.
    Gate 1 must confirm delivered outcomes (+3.6 dB worst case, +3.1 dB Sunday
    Club) are acceptable under the new cap=6.522 regime.
 
-3. **AdaptiveHarshnessConfig thresholds** (§4.3): Cannot go default-on until
-   thresholds move to targets.json. Gate 1 blocker for default-on only.
+3. **AdaptiveHarshnessConfig thresholds** (§4.3 updated 2026-08-22): `narrow_threshold_db`
+   reference-derived (2.756540113336035) and in targets.json. DEF-027-008 fixed (gain
+   doubling resolved). `broad_threshold_db` remains admitted placeholder (5.0, no
+   population evidence). Default-on blocked only by `broad_threshold_db` derivation.
 
-4. **AC5 partially satisfied** (§4.3): Reachability delivered; default-fire
-   deferred. QA must not mark AC5 fully met.
+4. **AC5 partially satisfied** (§4.3): Reachability delivered; `narrow_threshold_db`
+   derived; gain delivery correct (DEF-027-008 fixed). Default-fire blocked pending
+   `broad_threshold_db` derivation (N≥10 Suno tracks). QA must not mark AC5 fully met.
 
 5. **no_op_threshold_db calibrated to single track** (§7.3): Value 1.0 dB is
    calibrated against Sunday Club alone. When ≥3 Suno motivating-population

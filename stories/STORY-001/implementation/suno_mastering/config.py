@@ -199,7 +199,7 @@ class MasteringConfig:
     # --- Stem separation (STORY-008) ---
     stem_config: StemConfig = field(default_factory=StemConfig)
 
-    # --- Adaptive harshness (STORY-010) --- default off until explicitly enabled
+    # --- Adaptive harshness (STORY-010) --- default on (2026-08-25, AC5 satisfied)
     adaptive_harshness: AdaptiveHarshnessConfig = field(default_factory=AdaptiveHarshnessConfig)
 
     # --- suno_dsp pipeline stages (STORY-009) --- all default off (AC5) ---

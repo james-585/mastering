@@ -1,32 +1,38 @@
 {
-  "version": "0.2.0",
-  "configurations": [
-    {
-      "name": "Python: Run Suno Mastering",
-      "type": "debugpy",
-      "request": "launch",
-      "program": "${workspaceFolder}/stories/STORY-001/implementation/suno_mastering/__main__.py",
-      "console": "integratedTerminal",
-      "cwd": "${workspaceFolder}",
-      "justMyCode": true
-    },
-    {
-      "name": "C++: Attach to Python process (lldb/gdb)",
-      "type": "cppdbg",
-      "request": "launch",
-      "program": "${command:python.interpreterPath}",
-      "args": [
-        "-c",
-        "import sys; sys.path.insert(0, r'${workspaceFolder}/stories/STORY-001/implementation'); import suno_mastering; import suno_dsp; print('Loaded suno_dsp successfully')"
-      ],
-      "cwd": "${workspaceFolder}",
-      "stopAtEntry": false,
-      "externalConsole": false,
-      "MIMode": "lldb",
-      "miDebuggerPath": "lldb",
-      "sourceFileMap": {
-        "${workspaceFolder}": "${workspaceFolder}"
-      }
-    }
-  ]
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Run Suno Mastering",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/stories/STORY-001/implementation/suno_mastering/__main__.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "justMyCode": true
+        },
+        {
+            "name": "C++: Attach to Python process (lldb/gdb)",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${command:python.interpreterPath}",
+            "args": [
+                "-c",
+                "import sys; sys.path.insert(0, r'${workspaceFolder}/stories/STORY-001/implementation'); import suno_mastering; import suno_dsp; print('Loaded suno_dsp successfully')"
+            ],
+            "cwd": "${workspaceFolder}",
+            "stopAtEntry": false,
+            "externalConsole": false,
+            "MIMode": "lldb",
+            "miDebuggerPath": "lldb",
+            "sourceFileMap": {
+                "${workspaceFolder}": "${workspaceFolder}"
+            }
+        },
+        {
+            "name": "Python Package: DCC",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "DCC"
+        }
+    ]
 }
