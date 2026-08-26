@@ -5,7 +5,73 @@ This is the single running ledger of defects found against
 status-updated, so there is a full audit trail.
 
 ## Open issues
-_(none)_
+- DEF-011-05: Transient restoration fires on sustain-dominant stems (pads, slow-attack content) whose onset region has no meaningful attack energy, producing pumping artifacts and spectral damage in the mids/highs
+
+## DEF-011-05
+Status: Open
+Reported by: user (listening review 2026-08-25, confirmed by analysis of Euphoric D Minor report)
+Linked test case: none yet
+
+Description:
+`apply_stem_transient_restoration` applies onset-local gain to stems whose
+onset window contains near-silence — not because the attack was compressed,
+but because the stem is sustain-dominant (a pad or chord that fades in or
+starts below the level it reaches in the body of the stem). The attack-ratio
+metric (`_local_attack_ratio`) measures `peak(env[1ms:250ms]) / median(env[:25ms])`.
+For a pad that starts from near-silence, `median(env[:25ms])` ≈ 0, making the
+ratio arbitrarily large (observed: 511.28 on the "other" stem of
+`Euphoric D Minor.wav`). This triggers the maximum gain cap (+3.5 dB) and
+`action_type="attack_boost"` even though the onset region has no transient
+energy to restore.
+
+Reproduction evidence:
+- Track: `C:\Users\james\Downloads\Euphoric D Minor.wav`
+- Report: `Euphoric D Minor_mastered_report.json` (2026-08-25)
+- Stem: "other" (pads/chords)
+  - `onset_peak_before: 0.0171` (−35.3 dBFS onset window)
+  - `global_peak_before: 0.524`
+  - `onset/global ratio: 3.2%` — onset region has 3% of the stem's body energy
+  - `severity: 511.28` — ratio inflated by near-zero baseline
+  - `gain_db: 3.5` — full cap applied
+- Blast radius: the onset window is the **first 80 ms of the file only**
+  (`W = int(0.08 * 48000) = 3840 samples`). The gain boost affects 0.03%
+  of a 244.8 s track. This is NOT the cause of any full-track mid/high
+  damage — see separately-investigated EQ filter shape and DR expansion.
+  The metric defect is real but its severity is low: a spurious 3.5 dB
+  blip in the first 80 ms of the re-summed "other" stem, audible only at
+  the very start of the track.
+
+Root cause — two distinct gaps, both in `transient_restoration.py`:
+
+1. **No onset significance gate.** The ratio metric cannot distinguish
+   "attack was compressed to below the sustained level" from "stem is a pad
+   with a slow natural attack." Both produce high ratios. For a pad that
+   starts from silence, the ratio is pathologically large (511×) because
+   the baseline window catches the silence. An onset window peak that is
+   a small fraction of the global peak is direct evidence there is no
+   meaningful attack to restore; the metric should gate out before the
+   ratio is even computed.
+
+2. **No reconstruction-quality guard.** When the forensics stage (STORY-023)
+   finds a high reconstruction residual (WARN or higher), stem-based
+   processing is operating on spectrally polluted input. The current stage
+   has no awareness of separation quality and applies full gain regardless.
+   (This gap may need an architectural decision on how forensics context
+   is passed; noted here as a contributing factor.)
+
+Triage: Code-level (gap 1 — onset significance gate in `transient_restoration.py`).
+         Architectural (gap 2 — forensics context is not currently passed to this
+         stage; the software-architect must decide the interface contract before
+         gap 2 can be implemented).
+
+Required fix for gap 1 (method change, not threshold tuning):
+Add an `_onset_significant()` guard that computes `p_onset / global_peak_before`.
+If this ratio is below a documented threshold, the onset region has no
+meaningful signal relative to the stem body and no attack can be restored —
+skip the stem with a new report-visible action type `"skipped_onset_quiet"`.
+The threshold and its derivation must be documented in `architecture.md`
+(H4/H6 pattern). This is a new evidence gate, not a tuning of the existing
+ratio threshold or gain cap.
 
 ## DEF-011-01
 Status: Closed (2026-08-17)

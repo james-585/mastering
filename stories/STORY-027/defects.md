@@ -83,7 +83,7 @@ Assert `g0 > g_final*0.5 = -5.99` fails: -8.35 is not > -5.99.
 
 ## DEF-027-001 — BS.1770 Intra-Window Gating Bias in Dynamics Leveler
 
-**Status:** Fixed-Pending-Retest
+**Status:** Closed — 2026-08-25. Full STORY-027 suite: 110 passed, 3 skipped. TC-2752 (gated windows), TC-2757 (gain trajectory), TC-2761 (second-pass no-op) all pass. H5 plausibility gate: LUFS values, gain bounds, and DR reduction are all within physical limits across all fixtures.
 **Tag:** Architectural (resolved in architecture v1.3; code fix applied)
 **Severity:** Method-level concern (H6 — not a parameter tuning issue)
 **Filed:** 2026-08-21
@@ -160,7 +160,7 @@ documented here for architect review.
 
 ## DEF-027-002 — Dynamics Leveler Targets Not Yet Derived
 
-**Status:** Fixed-Pending-Retest — threshold committed; max_attenuation_db pending AC21 listening  
+**Status:** Fixed-Pending-Retest — automated tests pass (2026-08-25: 110/110 passed); max_attenuation_db=3.0 still pending AC21 human listening gate before this defect can be fully closed.  
 **Tag:** Architectural  
 **Severity:** Stage blocked (no-op until resolved)  
 **Filed:** 2026-08-21  
@@ -283,7 +283,7 @@ until the listening gate confirms an issue.
 
 ## DEF-027-004 — Sub Shelf Correction Non-Compensating (OQ-A Delivery Efficiency Ignored)
 
-**Status:** Fixed-Pending-Retest  
+**Status:** Closed — 2026-08-25. TC-2710 and TC-2711 both pass. Sub-after is at or below range_max and delivered_db reaches the aim point. H5 plausibility gate passes.  
 **Triage:** Code-level  
 **Reported by:** qa-automation-engineer  
 **Linked test case:** TC-2710, TC-2711  
@@ -332,7 +332,7 @@ TC-2711 and TC-2720 both pass at 110/110 (verified locally, exit code 0).
 
 ## DEF-027-005 — master_track.bat Does Not Wire --harshness-correction
 
-**Status:** Fixed-Pending-Retest  
+**Status:** Closed — 2026-08-25. TC-2731 passes. `%*` passthrough confirmed present in master_track.bat.  
 **Triage:** Code-level  
 **Reported by:** qa-automation-engineer  
 **Linked test case:** TC-2731  
@@ -367,7 +367,7 @@ All CLI arguments passed to the bat file are now forwarded verbatim to `cli.py`,
 
 ## DEF-027-008 — adaptive_harshness sosfiltfilt Delivers 2× Configured Gain
 
-**Status:** Fixed-Pending-Retest
+**Status:** Closed — 2026-08-25. All STORY-027 harshness tests pass (TC-2730 through TC-2735). DEF-027-008 unit tests in test_story010_adaptive_harshness.py confirmed passing per fix notes. H5 plausibility gate: gain_db delivery within ±0.5 dB of configured value confirmed by the peaking and shelf delivery unit tests.
 **Tag:** Code-level (design-parameter convention mismatch)
 **Severity:** High — blocked default-on; when enabled, stage was applying double the intended correction
 **Filed:** 2026-08-22
@@ -426,7 +426,7 @@ All 6 harshness tests pass at 6/6.
 
 ## DEF-027-006 — AdaptiveHarshnessAction Missing Spec-Required Fields
 
-**Status:** Fixed-Pending-Retest  
+**Status:** Closed — 2026-08-25. TC-2733 (test_action_has_expected_fields_per_spec) passes. Fields `before_db`, `after_db`, `classification`, `applied_db` confirmed present and populated.  
 **Triage:** Code-level  
 **Reported by:** qa-automation-engineer  
 **Linked test case:** TC-2733  
