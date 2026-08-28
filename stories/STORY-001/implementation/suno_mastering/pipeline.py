@@ -173,20 +173,29 @@ def _stem_cancellation_blend(
     processed: np.ndarray,
     sample_rate: int,
 ) -> tuple[np.ndarray, float]:
-    """DEF-006-02: detect and repair per-window mid-band cancellation from stem re-summation.
+    """DEF-006-02: detect mid-band cancellation and repair with a frequency-selective delta.
 
-    Compares 500-2000 Hz RMS in 0.5s windows between original and processed.
-    Where processed loses more than _STEM_MID_LOSS_THRESHOLD_DB, blends toward
-    original using a cross-fade to avoid discontinuities.
+    Analysis: compare 500-2000 Hz RMS in 0.5s windows between original and processed.
+    Repair: for windows above the loss threshold, add back the mid-band deficit as a
+    zero-phase delta — (orig_mid - proc_mid) * alpha — leaving sub/low/high untouched.
+
+    Broadband blending was avoided deliberately: mixing raw original + transient-boosted
+    processed at window boundaries caused low-frequency ringing at the seam points.
 
     Returns (repaired_audio, max_loss_db_seen).
     """
-    from scipy.signal import butter, lfilter
-    nyq = sample_rate / 2.0
-    b, a = butter(2, [500.0 / nyq, 2000.0 / nyq], btype="band")
+    from scipy.signal import butter, lfilter, sosfiltfilt
 
-    orig_mono = (original.mean(axis=1) if original.ndim == 2 else original).astype(np.float64)
-    proc_mono = (processed.mean(axis=1) if processed.ndim == 2 else processed).astype(np.float64)
+    nyq = sample_rate / 2.0
+    lo, hi = 500.0, 2000.0
+    b, a = butter(2, [lo / nyq, hi / nyq], btype="band")          # causal, for analysis
+    sos  = butter(2, [lo / nyq, hi / nyq], btype="band", output="sos")  # zero-phase, for repair
+
+    orig_f64 = original.astype(np.float64)
+    proc_f64 = processed.astype(np.float64)
+
+    orig_mono = (orig_f64.mean(axis=1) if orig_f64.ndim == 2 else orig_f64)
+    proc_mono = (proc_f64.mean(axis=1) if proc_f64.ndim == 2 else proc_f64)
 
     orig_filt = lfilter(b, a, orig_mono)
     proc_filt = lfilter(b, a, proc_mono)
@@ -194,7 +203,6 @@ def _stem_cancellation_blend(
     hop = int(_STEM_MID_WINDOW_S * sample_rate)
     n_samples = len(orig_mono)
 
-    # Compute per-window blend weights
     blend_weights = np.zeros(n_samples, dtype=np.float64)
     max_loss = 0.0
 
@@ -208,26 +216,31 @@ def _stem_cancellation_blend(
         if loss_db > max_loss:
             max_loss = loss_db
         if loss_db > _STEM_MID_LOSS_THRESHOLD_DB:
-            # Alpha scales from 0 at threshold to 0.8 at 10 dB above threshold
             alpha = min(0.8, (loss_db - _STEM_MID_LOSS_THRESHOLD_DB) / 10.0)
             blend_weights[start:end] = alpha
 
     if max_loss <= _STEM_MID_LOSS_THRESHOLD_DB:
         return processed, max_loss
 
-    # Smooth the blend weights with a short fade to avoid clicks
-    fade_len = min(int(0.02 * sample_rate), hop // 4)  # 20ms fade
+    fade_len = min(int(0.02 * sample_rate), hop // 4)  # 20ms smoothing
     if fade_len > 1:
         from scipy.ndimage import uniform_filter1d
         blend_weights = uniform_filter1d(blend_weights, size=fade_len * 2)
 
-    if processed.ndim == 2:
-        bw2 = blend_weights[:, np.newaxis]
-        repaired = (1.0 - bw2) * processed + bw2 * original.astype(np.float64)
+    # ── Frequency-selective repair ─────────────────────────────────────────────
+    # Extract 500-2000 Hz from both signals with zero-phase filtering so the
+    # delta itself has no phase delay. Add the weighted delta to processed;
+    # everything outside 500-2000 Hz is bit-identical to the input.
+    if proc_f64.ndim == 2:
+        orig_mid = np.stack([sosfiltfilt(sos, orig_f64[:, ch]) for ch in range(proc_f64.shape[1])], axis=1)
+        proc_mid = np.stack([sosfiltfilt(sos, proc_f64[:, ch]) for ch in range(proc_f64.shape[1])], axis=1)
+        delta = (orig_mid - proc_mid) * blend_weights[:, np.newaxis]
     else:
-        repaired = (1.0 - blend_weights) * processed + blend_weights * original.astype(np.float64)
+        orig_mid = sosfiltfilt(sos, orig_f64)
+        proc_mid = sosfiltfilt(sos, proc_f64)
+        delta = (orig_mid - proc_mid) * blend_weights
 
-    return repaired, max_loss
+    return proc_f64 + delta, max_loss
 
 
 def _apply_story_11_17_stem_mastering(audio: np.ndarray, sample_rate: int, stem_result=None) -> tuple[np.ndarray, dict[str, list]]:
