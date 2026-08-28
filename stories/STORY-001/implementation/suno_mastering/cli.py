@@ -309,6 +309,15 @@ def main(argv=None) -> int:
         if value is not None
     }
     config.stem_config = dataclasses.replace(config.stem_config, **stem_updates)
+
+    # Interactive toggle: only ask when stem separation is currently on.
+    # Non-interactive paths (piped stdin, bat file redirect) skip the prompt
+    # and keep whatever the flags resolved to.
+    if config.stem_config.enabled:
+        use_stems = _prompt_yes_no("Use Demucs stem separation?", default=True)
+        if not use_stems:
+            config.stem_config = dataclasses.replace(config.stem_config, enabled=False)
+
     if config.stem_config.enabled:
         print(
             "Stem separation enabled: "
