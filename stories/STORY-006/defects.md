@@ -4,6 +4,9 @@ QA automation run: 2026-08-12
 Test files: `tests/test_story006_targets.py`, `tests/test_story006_corrective_eq.py`,
             `tests/test_story006_width.py`, `tests/test_story006_pipeline.py`
 
+## Open issues
+- DEF-006-01: de_mud trigger fires on 120–500 Hz band average, causing false positives when excess energy is in 120–200 Hz bass-bloom range; peaking bell then over-corrects 200–500 Hz warmth
+
 ---
 
 ## DEF-605
@@ -56,6 +59,75 @@ Do NOT delete `mastering/eq.py` — its biquad primitives remain imported by `co
 
 **Developer fix notes (2026-08-12):** **Parameter change: No. Method change: Yes (pipeline stage removal and restructure).**  
 All 5 pipeline.py changes applied: (1) removed `from .mastering import eq as eq_mod`; (2) removed Stage [4] block calling `eq_mod.apply_corrective_eq`; (3) `eq_actions = []` initialization added; (4) merge simplified to `eq_actions = list(...)` (no try/except); (5) stage comment updated to `# --- [4] Corrective EQ (targets-based) ---`. `mastering/eq.py` confirmed still exists. `config.py`: removed `eq_max_gain_db` field after first removing its reference from `report/builder.py` line 43. **Partial deviation from architect's instruction on `reference_curve_path`:** The architect's §23 states `load_reference_curve()` (the method) has zero external callers and should be removed along with `reference_curve_path`. However, the actual method name in config.py is `reference_curve()` (not `load_reference_curve()`), and `analysis/frequency_balance.py:44` calls `config.reference_curve()` — it IS live code for Stage [2] analysis. Removing it would break Stage [2]. The architect grepped for `load_reference_curve` but the method is named `reference_curve` — wrong method name was searched. Only `eq_max_gain_db` was removed as confirmed dead. `reference_curve_path`, `_DEFAULT_REFERENCE_CURVE`, and `reference_curve()` retained because they are Stage [2] dependencies. This is an Architectural observation: the §23 disposition for `reference_curve_path` is based on an incorrect grep that used the wrong method name.
+
+---
+
+## DEF-006-01
+
+**Status:** Open  
+**Reported by:** user (listening review 2026-08-28, confirmed by comparison of Euphoric D Minor vs Nostalgic Analog Wall reports)  
+**Linked test case:** none yet
+
+**Description:**
+
+The de_mud trigger fires on the seven-band `low_mid` measurement (120–500 Hz) but the
+corrective peaking bell is centred at the geometric mean of that band (~245 Hz). When
+the excess energy is concentrated in the lower sub-portion of the band (120–200 Hz —
+kick harmonics, bass bloom) rather than in the user-perceptible mud range (200–500 Hz),
+the trigger fires on a false positive and the bell removes warmth from 200–500 Hz
+(chord and pad body) that needs no correction.
+
+**Reproduction evidence:**
+
+- Bad track: `Euphoric D Minor.wav` (2026-08-28 run)
+  - Three-band Low-mid/mud (200–500 Hz): −0.35 dB — NOT perceptibly muddy
+  - Seven-band low_mid (120–500 Hz): ~+5.76 dB relative — trigger fires
+  - de_mud action: applied −3.76 dB peaking bell at ~245 Hz
+  - After correction: three-band 200–500 Hz = −2.91 dB (over-corrected from fine to below target)
+  - User perception: "destroying the mids and highs"
+
+- Good track: `Nostalgic Analog Wall.wav` (2026-08-22 run)
+  - Three-band Low-mid/mud (200–500 Hz): +3.70 dB — genuinely muddy
+  - Seven-band low_mid: ~+6.08 dB — trigger fires (correctly)
+  - de_mud action: applied −4.08 dB peaking bell
+  - After correction: three-band 200–500 Hz = +0.81 dB (improved toward target)
+  - User perception: good outcome
+
+**Root cause:**
+
+The trigger guard in `corrective_eq.py` is:
+```
+de_mud_fires = src_lm > mid_db + de_mud_threshold
+```
+where `src_lm` is the 120–500 Hz seven-band measurement. This band includes the
+120–200 Hz bass-bloom range which is irrelevant to the user-perceptible muddiness
+in 200–500 Hz. A track with heavy kick/bass harmonic content in 120–200 Hz will
+have an elevated 120–500 Hz average and trigger de_mud even when the 200–500 Hz
+slice is within an acceptable range.
+
+The peaking bell at ~245 Hz (geometric centre of 120–500 Hz) then attenuates the
+200–500 Hz warmth range (body of chords, pads) by 2–3 dB to reach the aim point,
+while the actual 120–200 Hz elevation is only partially addressed (bell tail at
+that frequency). The result is that the correction removes warmth the track didn't
+have in excess and leaves the bass bloom partially uncorrected.
+
+**Triage:** Architectural — requires a decision on whether to change the trigger
+measurement band from 120–500 Hz (seven-band) to the 200–500 Hz three-band mud
+measurement, and whether the filter centre should be dynamically selected based on
+the spectral distribution of excess energy within the 120–500 Hz band.
+
+**Required fix (method change, not threshold tuning):**
+
+The de_mud trigger must be evaluated against the 200–500 Hz slice that the peaking
+bell is actually meant to correct, not the 120–500 Hz band average. The software
+architect must specify:
+
+1. Whether `src_lm` in the trigger check should be replaced by the 200–500 Hz
+   three-band measurement (or a weighted sub-band measurement).
+2. Whether the peaking bell centre (currently fixed at geometric mean of 120–500 Hz ≈
+   245 Hz) should move based on where the excess energy is concentrated.
+3. Whether a separate 120–200 Hz correction path is needed for bass-bloom content
+   that the current 245 Hz bell under-addresses.
 
 ---
 
