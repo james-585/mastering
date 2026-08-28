@@ -1115,11 +1115,12 @@ class TestTC2731:
         python_cmd = " ".join(python_cmd_lines)
         wired = (
             "%*" in python_cmd or
-            "--harshness-correction" in python_cmd
+            "--harshness-correction" in python_cmd or
+            "%EXTRA_ARGS%" in python_cmd.upper()
         )
         assert wired, (
             "master_track.bat does not wire --harshness-correction through to python.\n"
-            "Expected: either '%*' (pass-through) or '--harshness-correction' in the command.\n"
+            "Expected: '%*', '%EXTRA_ARGS%', or '--harshness-correction' in the command.\n"
             f"Found command: {python_cmd.strip()}"
         )
 

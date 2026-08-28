@@ -7,6 +7,17 @@ if "%INPUT%"=="" (
     set /p INPUT=Enter full path to your WAV file:
 )
 
+REM Collect extra CLI flags passed after the input file (%2 onwards).
+REM %* always includes %1 (the input path), so using it directly would
+REM duplicate the path argument and confuse argparse when the path has spaces.
+set "EXTRA_ARGS="
+:collect_extra
+shift /1
+if "%~1"=="" goto done_extra
+set "EXTRA_ARGS=%EXTRA_ARGS% %1"
+goto collect_extra
+:done_extra
+
 set "REPO_ROOT=%~dp0"
 set "IMPLEMENTATION_DIR=%REPO_ROOT%stories\STORY-001\implementation"
 set "PYTHONPATH=%IMPLEMENTATION_DIR%;%PYTHONPATH%"
@@ -37,7 +48,7 @@ REM four-stem models remain available via --stem-model overrides.
 REM
 REM Adaptive harshness correction (2-5 kHz) is DEFAULT ON (2026-08-25).
 REM Pass --no-harshness-correction to disable if a track sounds over-corrected.
-python -m suno_mastering "%INPUT%" --split-stems --stem-model htdemucs_6s --no-detect-whistles --no-repair-whistles --no-shape-transients --no-collapse-swish %*
+python -m suno_mastering "%INPUT%" --split-stems --stem-model htdemucs_6s --no-detect-whistles --no-repair-whistles --no-shape-transients --no-collapse-swish%EXTRA_ARGS%
 
 if errorlevel 2 (
     echo.
