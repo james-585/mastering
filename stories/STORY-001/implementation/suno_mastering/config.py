@@ -32,7 +32,7 @@ class StemConfig:
     enabled: bool = False
     # Default is the 6-stem model so piano/guitar are always separated
     # (STORY-022); four-stem models remain explicit opt-in overrides.
-    model_name: str = "htdemucs_6s"
+    model_name: str = "htdemucs"
     shifts: int = 1
     overlap: float = 0.25
     segment_seconds: float | None = None
