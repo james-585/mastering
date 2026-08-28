@@ -6,6 +6,7 @@ Test files: `tests/test_story006_targets.py`, `tests/test_story006_corrective_eq
 
 ## Open issues
 - DEF-006-01: de_mud trigger fires on 120–500 Hz band average, causing false positives when excess energy is in 120–200 Hz bass-bloom range; peaking bell then over-corrects 200–500 Hz warmth
+- DEF-006-02: HTDemucs stem re-summation introduces mid-frequency phase cancellation during bass-heavy sections, causing up to -10 dB mid dropout at the onset of heavy bass passages
 
 ---
 
@@ -128,6 +129,70 @@ architect must specify:
    245 Hz) should move based on where the excess energy is concentrated.
 3. Whether a separate 120–200 Hz correction path is needed for bass-bloom content
    that the current 245 Hz bell under-addresses.
+
+---
+
+## DEF-006-02
+
+**Status:** Open  
+**Reported by:** user (listening review 2026-08-28) + forensic analysis  
+**Linked test case:** none yet
+
+**Description:**
+
+When stem separation is enabled (default), HTDemucs produces phase-misaligned mid-frequency
+content in its separated stems. When the stems are re-summed in `_apply_story_11_17_stem_mastering`
+→ `apply_final_bus_glue` → `_recombine_mix`, the mid-frequency (500–2000 Hz) bands cancel
+partially, producing a dropout of up to **-10 dB in the mid band** for the duration of the
+bass-heavy section. The dropout is **frequency-selective** (mid much worse than broadband),
+which rules out the limiter or any static processing as the cause.
+
+**Reproduction evidence (Euphoric D Minor, 2026-08-28):**
+
+- Source track has a heavy bass section starting at t=27.8s.
+- Pipeline simulation (sub EQ + 1.47 dB gain + limiter applied to ORIGINAL audio) predicts:
+  - 500-2k: +1.47 dB vs original, broadband: +0.13 dB.
+  - Limiter fires ZERO gain reduction at 28.6–29.0s (peak only -9.1 dBFS).
+- Actual mastered output at 27.8–30s (3-second window):
+  - 500-2k: -2.47 dB vs original (3.94 dB below simulation).
+  - 2k-10k: -1.05 dB vs original (2.52 dB below simulation).
+  - Broadband: -1.13 dB vs original.
+- 100ms scan shows worst moments at 28.7–29.6s: 500-2k delta reaches -10 dB.
+- The "unexplained" -3.94 dB / -2.52 dB gap can only be attributed to stem processing.
+
+**Root cause:**
+
+`pipeline.py` passes the HTDemucs-separated stems (`stem_result.stems`) to
+`_apply_story_11_17_stem_mastering`. That function applies transient restoration, harshness
+control, stereo imaging, and bus glue PER STEM, then calls `apply_final_bus_glue` →
+`_recombine_mix` which sums all stems. HTDemucs separation is imperfect (reconstruction
+residual = -17.4 dBFS RMS, peak 0.354); at bass-heavy moments the mid-frequency content of
+the bass and other stems is phase-misaligned relative to the original. When re-summed, the
+phase mismatch causes partial cancellation in 500–2000 Hz.
+
+This re-summation occurs AFTER the STORY-023 forensics gate (which only checks the Phase C
+stem sum, not the Phase D processing in `_apply_story_11_17_stem_mastering`).
+
+**STORY-023 forensics WARN**: reconstruction residual exceeded tolerance
+(max_abs=0.354171, residual=-17.40 dBFS). Pipeline continues with warning — but the
+cancellation in the re-summation within `_apply_story_11_17_stem_mastering` is unchecked.
+
+**Workaround:** Run with `--no-split-stems`. This uses the original audio mix directly,
+avoiding HTDemucs re-summation. Per-stem transient boosts are lost but the dropout is
+eliminated. Example:
+
+```
+python -m suno_mastering "track.wav" --no-split-stems
+```
+
+**Triage:** Architectural — the FULL STEM REPLACEMENT approach (replacing the original audio
+buffer with the HTDemucs stem sum) is fragile to separation quality. The correct fix requires
+one of:
+1. Apply stem-derived corrections as DELTAS on top of the original audio (not full replacement).
+2. Post-stem-summation spectral matching: compare stem sum to original and blend back in
+   mid/high bands where cancellation is detected.
+3. Add a STORY-023-style forensics check AFTER `_apply_story_11_17_stem_mastering` and gate
+   on cancellation severity to decide whether to use the stem sum or fall back to original.
 
 ---
 

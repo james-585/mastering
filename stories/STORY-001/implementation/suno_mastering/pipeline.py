@@ -164,6 +164,72 @@ def _rescale_regions_to_sample_rate(regions, new_sr: int) -> list:
     return rescaled
 
 
+_STEM_MID_LOSS_THRESHOLD_DB = 2.0   # per-window loss that triggers blend
+_STEM_MID_WINDOW_S = 0.5            # window size for short-time comparison
+
+
+def _stem_cancellation_blend(
+    original: np.ndarray,
+    processed: np.ndarray,
+    sample_rate: int,
+) -> tuple[np.ndarray, float]:
+    """DEF-006-02: detect and repair per-window mid-band cancellation from stem re-summation.
+
+    Compares 500-2000 Hz RMS in 0.5s windows between original and processed.
+    Where processed loses more than _STEM_MID_LOSS_THRESHOLD_DB, blends toward
+    original using a cross-fade to avoid discontinuities.
+
+    Returns (repaired_audio, max_loss_db_seen).
+    """
+    from scipy.signal import butter, lfilter
+    nyq = sample_rate / 2.0
+    b, a = butter(2, [500.0 / nyq, 2000.0 / nyq], btype="band")
+
+    orig_mono = (original.mean(axis=1) if original.ndim == 2 else original).astype(np.float64)
+    proc_mono = (processed.mean(axis=1) if processed.ndim == 2 else processed).astype(np.float64)
+
+    orig_filt = lfilter(b, a, orig_mono)
+    proc_filt = lfilter(b, a, proc_mono)
+
+    hop = int(_STEM_MID_WINDOW_S * sample_rate)
+    n_samples = len(orig_mono)
+
+    # Compute per-window blend weights
+    blend_weights = np.zeros(n_samples, dtype=np.float64)
+    max_loss = 0.0
+
+    for start in range(0, n_samples, hop):
+        end = min(start + hop, n_samples)
+        orig_rms = float(np.sqrt(np.mean(orig_filt[start:end] ** 2)))
+        proc_rms = float(np.sqrt(np.mean(proc_filt[start:end] ** 2)))
+        if orig_rms < 1e-10:
+            continue
+        loss_db = 20.0 * np.log10(orig_rms / max(proc_rms, 1e-12))
+        if loss_db > max_loss:
+            max_loss = loss_db
+        if loss_db > _STEM_MID_LOSS_THRESHOLD_DB:
+            # Alpha scales from 0 at threshold to 0.8 at 10 dB above threshold
+            alpha = min(0.8, (loss_db - _STEM_MID_LOSS_THRESHOLD_DB) / 10.0)
+            blend_weights[start:end] = alpha
+
+    if max_loss <= _STEM_MID_LOSS_THRESHOLD_DB:
+        return processed, max_loss
+
+    # Smooth the blend weights with a short fade to avoid clicks
+    fade_len = min(int(0.02 * sample_rate), hop // 4)  # 20ms fade
+    if fade_len > 1:
+        from scipy.ndimage import uniform_filter1d
+        blend_weights = uniform_filter1d(blend_weights, size=fade_len * 2)
+
+    if processed.ndim == 2:
+        bw2 = blend_weights[:, np.newaxis]
+        repaired = (1.0 - bw2) * processed + bw2 * original.astype(np.float64)
+    else:
+        repaired = (1.0 - blend_weights) * processed + blend_weights * original.astype(np.float64)
+
+    return repaired, max_loss
+
+
 def _apply_story_11_17_stem_mastering(audio: np.ndarray, sample_rate: int, stem_result=None) -> tuple[np.ndarray, dict[str, list]]:
     """Activate the validated Story 11-14 mastering stages in the live product path."""
     stems: dict[str, np.ndarray]
@@ -179,6 +245,20 @@ def _apply_story_11_17_stem_mastering(audio: np.ndarray, sample_rate: int, stem_
     processed = bus_processed.get("mix", np.asarray(audio, dtype=np.float64).copy())
     if processed.shape != np.asarray(audio, dtype=np.float64).shape:
         processed = np.asarray(audio, dtype=np.float64).copy()
+
+    # DEF-006-02: short-time mid-band cancellation guard for stem re-summation.
+    # HTDemucs can produce phase-misaligned stems at bass-heavy moments, causing
+    # up to 10 dB of mid (500-2000 Hz) cancellation in 0.5-2 second windows.
+    # The overall-track RMS would not detect this (2s in 244s). Instead compare
+    # 0.5s windows and blend toward original wherever loss exceeds the threshold.
+    if stem_result is not None and getattr(stem_result, "stems", None):
+        processed, max_loss_db = _stem_cancellation_blend(audio, processed, sample_rate)
+        if max_loss_db > _STEM_MID_LOSS_THRESHOLD_DB:
+            logger.warning(
+                "DEF-006-02: stem re-summation mid-band cancellation detected "
+                "(worst window: %.1f dB loss); applied short-time blend to repair.",
+                max_loss_db,
+            )
 
     return processed, {
         "transient_restoration": transient_actions,
