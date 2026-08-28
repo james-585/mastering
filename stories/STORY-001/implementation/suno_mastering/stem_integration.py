@@ -193,17 +193,21 @@ def run_stem_preprocessing(
         _stem_sum_true_peak = float(np.max(np.abs(_flat[_lo] + (_flat[_hi] - _flat[_lo]) * _frac)))
     else:
         _stem_sum_true_peak = _stem_sum_sample_peak
-    _stem_sum_peak = max(_stem_sum_sample_peak, _stem_sum_true_peak)
-    if _stem_sum_peak > 0.999999 and _stem_sum_peak < 1.414:
-        _scale = 0.9990 / _stem_sum_peak
+    # Individual stems can peak higher than the sum (peaks at different times),
+    # so normalise against whichever is largest: sum or any single stem.
+    _max_any_peak = max(_stem_sum_sample_peak, _stem_sum_true_peak)
+    for _s in processed_stems.values():
+        _sp = float(np.max(np.abs(_s)))
+        if _sp > _max_any_peak:
+            _max_any_peak = _sp
+    if _max_any_peak > 0.999999 and _max_any_peak < 1.414:
+        _scale = 0.9990 / _max_any_peak
         summed_audio = summed_audio * _scale
-        # Scale individual stems by the same factor so Phase D processing
-        # (transient restoration) receives consistent, in-range arrays.
         processed_stems = {name: stem * _scale for name, stem in processed_stems.items()}
         logger.warning(
-            "Stem re-summation: sample peak %.4f / true peak %.4f exceeds guard; "
-            "normalised by %.6f — inaudible.",
-            _stem_sum_sample_peak, _stem_sum_true_peak, _scale,
+            "Stem re-summation: sample peak %.4f / true peak %.4f / max stem peak %.4f "
+            "exceeds guard; normalised by %.6f — inaudible.",
+            _stem_sum_sample_peak, _stem_sum_true_peak, _max_any_peak, _scale,
         )
 
     # ── STORY-023: mandatory forensics gate after split/re-summation ──────────
