@@ -340,16 +340,25 @@ def master(
     # pre_seven_band_balance is passed to build_report for the before block.
     seven_band_map = {b.band: b.relative_db for b in seven_band.bands}
     pre_band_levels = {
-        "sub":     seven_band_map.get("sub", 0.0),
-        "low_mid": seven_band_map.get("low_mid", 0.0),
-        "mid":     seven_band_map.get("mid", 0.0),
+        "sub":               seven_band_map.get("sub", 0.0),
+        "low_mid":           seven_band_map.get("low_mid", 0.0),
+        "mid":               seven_band_map.get("mid", 0.0),
+        # DEF-006-01: gate de_mud on the 200-500 Hz three-band muddiness flag.
+        # The seven-band low_mid (120-500 Hz) includes 120-200 Hz bass-bloom
+        # energy that can fire de_mud as a false positive when the 200-500 Hz
+        # mud range is not actually elevated. Only fire de_mud when the
+        # three-band analysis (which measures 200-500 Hz) confirms muddiness.
+        "low_mid_mud_flagged": before.frequency_balance.low_mid_mud.flagged,
     }
     # Full 7-band dict preserved for reporting (all band relative_db values)
     pre_seven_band_balance = {b.band: b.relative_db for b in seven_band.bands}
 
     # de_mud_fired flag — needed for the seven_band_balance report block
     _de_mud_threshold = float(targets.get("de_mud", {}).get("flag_threshold_db_above_mid", 4.0))
-    _de_mud_fired = pre_band_levels["low_mid"] > pre_band_levels["mid"] + _de_mud_threshold
+    _de_mud_fired = (
+        pre_band_levels["low_mid_mud_flagged"]
+        and pre_band_levels["low_mid"] > pre_band_levels["mid"] + _de_mud_threshold
+    )
 
     eq_actions: list = []
     audio, eq_actions = corrective_eq_mod.apply_corrective_eq(

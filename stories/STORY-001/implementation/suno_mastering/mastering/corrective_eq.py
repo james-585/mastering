@@ -177,7 +177,10 @@ def apply_corrective_eq(
     range_min_lm = float(lm_t["range_db_re_mid"]["min"])
     range_max_lm = float(lm_t["range_db_re_mid"]["max"])
 
-    de_mud_fires = src_lm > mid_db + de_mud_threshold
+    # DEF-006-01: require the 200-500 Hz three-band muddiness flag before firing
+    # de_mud. Default True preserves old behaviour for callers that omit the key.
+    lm_mud_flagged = bool(pre_band_levels.get("low_mid_mud_flagged", True))
+    de_mud_fires = lm_mud_flagged and src_lm > mid_db + de_mud_threshold
     out_of_range = not (range_min_lm <= src_lm <= range_max_lm)
 
     aim_lm: float | None = None
