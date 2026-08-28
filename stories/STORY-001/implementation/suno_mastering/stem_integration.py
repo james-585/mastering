@@ -176,20 +176,31 @@ def run_stem_preprocessing(
         )
 
     # ── Peak-normalise stem sum before forensics gate ─────────────────────────
-    # Stem re-summation can produce tiny floating-point overloads (<3 dB) due
-    # to constructive interference between stems. These are inaudible but would
-    # hard-fail the STORY-023 clipping check (_CLIPPING_SAMPLE_LIMIT=0.999999).
-    # Normalise back to 0.9999 when the overshot is minor (peak < 1.0 * 3 dB).
-    # A peak >= 1.41 (> 3 dB over) would indicate a real gain problem and is
-    # left to the forensics gate to catch.
-    _stem_sum_peak = float(np.max(np.abs(summed_audio)))
-    if 1.0 < _stem_sum_peak < 1.414:
-        _scale = 0.9999 / _stem_sum_peak
+    # The forensics gate checks BOTH the sample peak (> 0.999999) and the 8x
+    # oversampled true peak (> 1.000001). A sample-peak normalisation to 0.9999
+    # is not sufficient — inter-sample peaks can still exceed 1.0 and fail the
+    # true-peak guard. Compute both and normalise based on the larger value.
+    # Guard: only fire on minor overloads (< 3 dB). Real gain bugs ≥ 1.414 are
+    # left for the forensics hard-fail.
+    _stem_sum_sample_peak = float(np.max(np.abs(summed_audio)))
+    _flat = summed_audio.reshape(-1).astype(np.float64)
+    _n = _flat.size
+    if _n >= 2:
+        _idx = np.linspace(0.0, _n - 1.0, _n * 8, endpoint=False)
+        _lo = np.floor(_idx).astype(np.int64)
+        _hi = np.clip(_lo + 1, 0, _n - 1)
+        _frac = _idx - _lo
+        _stem_sum_true_peak = float(np.max(np.abs(_flat[_lo] + (_flat[_hi] - _flat[_lo]) * _frac)))
+    else:
+        _stem_sum_true_peak = _stem_sum_sample_peak
+    _stem_sum_peak = max(_stem_sum_sample_peak, _stem_sum_true_peak)
+    if _stem_sum_peak > 0.999999 and _stem_sum_peak < 1.414:
+        _scale = 0.9990 / _stem_sum_peak
         summed_audio = summed_audio * _scale
         logger.warning(
-            "Stem re-summation peak %.4f slightly over 1.0 (floating-point "
-            "constructive interference); normalised by %.6f — inaudible.",
-            _stem_sum_peak, _scale,
+            "Stem re-summation: sample peak %.4f / true peak %.4f exceeds guard; "
+            "normalised by %.6f — inaudible.",
+            _stem_sum_sample_peak, _stem_sum_true_peak, _scale,
         )
 
     # ── STORY-023: mandatory forensics gate after split/re-summation ──────────

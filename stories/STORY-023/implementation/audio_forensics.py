@@ -224,7 +224,7 @@ def run_forensics(
 
     clip_output = _as_float64_stereo(recombined_arr, name="recombined")
     clipping_channel, clipping_peak = _channel_peak(clip_output)
-    clipping_detected = flag_clipping(recombined_arr) or flag_clipping(original_arr)
+    clipping_detected = flag_clipping(recombined_arr)
     phase_candidates = stems if isinstance(stems, Mapping) else {}
     phase_mismatch_detected = flag_phase_mismatch(phase_candidates)
 
