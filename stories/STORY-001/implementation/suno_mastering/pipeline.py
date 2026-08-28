@@ -246,20 +246,6 @@ def _apply_story_11_17_stem_mastering(audio: np.ndarray, sample_rate: int, stem_
     if processed.shape != np.asarray(audio, dtype=np.float64).shape:
         processed = np.asarray(audio, dtype=np.float64).copy()
 
-    # DEF-006-02: short-time mid-band cancellation guard for stem re-summation.
-    # HTDemucs can produce phase-misaligned stems at bass-heavy moments, causing
-    # up to 10 dB of mid (500-2000 Hz) cancellation in 0.5-2 second windows.
-    # The overall-track RMS would not detect this (2s in 244s). Instead compare
-    # 0.5s windows and blend toward original wherever loss exceeds the threshold.
-    if stem_result is not None and getattr(stem_result, "stems", None):
-        processed, max_loss_db = _stem_cancellation_blend(audio, processed, sample_rate)
-        if max_loss_db > _STEM_MID_LOSS_THRESHOLD_DB:
-            logger.warning(
-                "DEF-006-02: stem re-summation mid-band cancellation detected "
-                "(worst window: %.1f dB loss); applied short-time blend to repair.",
-                max_loss_db,
-            )
-
     return processed, {
         "transient_restoration": transient_actions,
         "harshness_control": harsh_actions,
@@ -368,6 +354,23 @@ def master(
     audio, story_11_17_actions = _apply_story_11_17_stem_mastering(
         audio, ingest_result.sample_rate, stem_result
     )
+
+    # DEF-006-02: short-time mid-band cancellation guard for stem re-summation.
+    # Must compare against ingest_result.audio (pre-stem original) — NOT the
+    # Phase C sum, which already carries the same HTDemucs phase artifacts.
+    # HTDemucs can produce phase-misaligned stems at bass-heavy moments causing
+    # up to 10 dB of 500-2000 Hz cancellation in 0.5-2 second windows.
+    if stem_result is not None:
+        audio, _stem_mid_loss_db = _stem_cancellation_blend(
+            ingest_result.audio, audio, ingest_result.sample_rate
+        )
+        if _stem_mid_loss_db > _STEM_MID_LOSS_THRESHOLD_DB:
+            logger.warning(
+                "DEF-006-02: stem re-summation mid-band cancellation %.1f dB "
+                "(threshold %.1f dB); short-time blend applied.",
+                _stem_mid_loss_db, _STEM_MID_LOSS_THRESHOLD_DB,
+            )
+
     _announce_story_step(2, "Tighten Low End", "local de-haze and control", reporter=reporter)
     _announce_story_step(2, "Tighten Low End", "widens only safe, stereo-healthy stems", reporter=reporter)
     _announce_story_step(2, "Tighten Low End", "cohesive final mix balance", reporter=reporter)
