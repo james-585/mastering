@@ -42,9 +42,9 @@ echo.
 REM The Python CLI itself prints the live stage-progress banner below --
 REM do not echo it here too, it would just be printed twice.
 REM Use the stem-aware pre-master flow so repairs are triggered only after
-REM explicit stem-level issue identification in Stage 2. Stem separation
-REM always runs the 6-stem HTDemucs model (piano/guitar isolation); the
-REM four-stem models remain available via --stem-model overrides.
+REM explicit stem-level issue identification in Stage 2. Uses the 4-stem
+REM HTDemucs model (drums/bass/other/vocals). The interactive prompt at
+REM startup lets you skip stem separation for tracks where it causes artifacts.
 REM
 REM Adaptive harshness correction (2-5 kHz) is DEFAULT ON (2026-08-25).
 REM Pass --no-harshness-correction to disable if a track sounds over-corrected.
