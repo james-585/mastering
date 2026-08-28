@@ -197,6 +197,9 @@ def run_stem_preprocessing(
     if _stem_sum_peak > 0.999999 and _stem_sum_peak < 1.414:
         _scale = 0.9990 / _stem_sum_peak
         summed_audio = summed_audio * _scale
+        # Scale individual stems by the same factor so Phase D processing
+        # (transient restoration) receives consistent, in-range arrays.
+        processed_stems = {name: stem * _scale for name, stem in processed_stems.items()}
         logger.warning(
             "Stem re-summation: sample peak %.4f / true peak %.4f exceeds guard; "
             "normalised by %.6f — inaudible.",
