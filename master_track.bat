@@ -48,7 +48,7 @@ REM four-stem models remain available via --stem-model overrides.
 REM
 REM Adaptive harshness correction (2-5 kHz) is DEFAULT ON (2026-08-25).
 REM Pass --no-harshness-correction to disable if a track sounds over-corrected.
-python -m suno_mastering "%INPUT%" --split-stems --stem-model htdemucs_6s --no-detect-whistles --no-repair-whistles --no-shape-transients --no-collapse-swish%EXTRA_ARGS%
+python -m suno_mastering "%INPUT%" --split-stems --stem-model htdemucs --no-detect-whistles --no-repair-whistles --no-shape-transients --no-collapse-swish%EXTRA_ARGS%
 
 if errorlevel 2 (
     echo.
