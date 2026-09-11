@@ -30,31 +30,19 @@ for inclusion in the final report.
 from __future__ import annotations
 
 import logging
-import sys
 import time
-from pathlib import Path
 from typing import Tuple, Optional
 
 import numpy as np
 
-from ._paths import bundle_root
 from .config import StemConfig
 from .analysis.types import StemSeparationResult
 from .io.stem_separation import split_stems
 from .mastering.stem_processing import process_stems, sum_stems
 from .mastering.stem_whistle_repair import attribute_and_repair_whistles
 
-# STORY-019: deterministic Mid/Side boundary for the `other` stem lives in the
-# story implementation folder (same cross-story pattern as pipeline.py).
-_REPO_ROOT = bundle_root()
-_STORY_019_IMPL = _REPO_ROOT / "stories" / "STORY-019" / "implementation"
-_STORY_023_IMPL = _REPO_ROOT / "stories" / "STORY-023" / "implementation"
-for _story_impl in (_STORY_019_IMPL, _STORY_023_IMPL):
-    if str(_story_impl) not in sys.path:
-        sys.path.insert(0, str(_story_impl))
-
-from stem_ms_dsp import process_other_stem
-from audio_forensics import run_forensics
+from .stem_stages.stem_ms_dsp import process_other_stem
+from .stem_stages.audio_forensics import run_forensics
 
 logger = logging.getLogger(__name__)
 

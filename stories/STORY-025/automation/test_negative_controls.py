@@ -6,8 +6,8 @@ from __future__ import annotations
 import dataclasses
 import inspect
 
-import grounded_quality_review
-from grounded_quality_review import (
+from suno_mastering.quality_review import grounded_quality_review
+from suno_mastering.quality_review.grounded_quality_review import (
     GroundedMetrics,
     QualityReviewResult,
     compute_grounded_metrics,
@@ -45,7 +45,7 @@ def test_tc2529_clarity_delta_absent_from_grounded_module():
 def test_tc2530_old_proxy_metrics_still_present_in_deprecated_module():
     """Regression lock, not a correctness test (test-cases.md §Section 5) --
     architecture.md §2 explicitly retains final_quality_review.py unmodified."""
-    import final_quality_review
+    from suno_mastering.stem_stages import final_quality_review
 
     assert hasattr(final_quality_review, "_spectral_tilt")
     source = inspect.getsource(final_quality_review._summary_metrics)

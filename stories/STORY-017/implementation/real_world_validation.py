@@ -8,18 +8,14 @@ import numpy as np
 import soundfile as sf
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
-_FOR_IMPORT = [
-    _REPO_ROOT / "stories" / "STORY-016" / "implementation",
-    _REPO_ROOT / "stories" / "STORY-025" / "implementation",
-]
-for _path in _FOR_IMPORT:
-    if str(_path) not in sys.path:
-        sys.path.insert(0, str(_path))
+_STORY_016_IMPL = _REPO_ROOT / "stories" / "STORY-016" / "implementation"
+if str(_STORY_016_IMPL) not in sys.path:
+    sys.path.insert(0, str(_STORY_016_IMPL))
 
 from orchestration import MasteringOrchestrator
-from grounded_quality_review import evaluate_quality_review
-from environment_check import EnvironmentVerificationError, verify_stem_separation_environment
-from human_review_capture import HumanReviewRecord, HumanReviewRequiredError, capture_human_review
+from suno_mastering.quality_review.grounded_quality_review import evaluate_quality_review
+from suno_mastering.quality_review.environment_check import EnvironmentVerificationError, verify_stem_separation_environment
+from suno_mastering.quality_review.human_review_capture import HumanReviewRecord, HumanReviewRequiredError, capture_human_review
 
 
 ACCEPTED_PARAMETERS = {

@@ -6,19 +6,9 @@ assert one inline" convention.
 """
 from __future__ import annotations
 
-import sys
 from dataclasses import dataclass, field
-from pathlib import Path
 
-_REPO_ROOT = Path(__file__).resolve().parents[3]
-_FOR_IMPORT = [
-    _REPO_ROOT / "stories" / "STORY-001" / "implementation",
-]
-for _path in _FOR_IMPORT:
-    if str(_path) not in sys.path:
-        sys.path.insert(0, str(_path))
-
-from suno_mastering.reference_analysis.config import ReferenceAnalysisConfig
+from ..reference_analysis.config import ReferenceAnalysisConfig
 
 
 @dataclass

@@ -2,19 +2,12 @@
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "implementation"))
-sys.path.insert(
-    0,
-    str(Path(__file__).resolve().parents[2] / "STORY-001" / "implementation"),
-)
-
-from workflow_screen import (
+from suno_mastering.workflow_screen import (
     ScreenContext,
     render_error,
     render_run_header,
@@ -142,7 +135,7 @@ def test_tc024_04_summary_never_fakes_completion(tmp_path):
 
 def test_tc024_05_cli_only_no_gui_dependency():
     # The module must be importable and render pure text with no GUI imports.
-    import workflow_screen
+    from suno_mastering import workflow_screen
 
     source = Path(workflow_screen.__file__).read_text(encoding="utf-8")
     for gui_marker in ("tkinter", "PyQt", "wx", "pygame"):

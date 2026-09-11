@@ -1,29 +1,14 @@
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
 
 import numpy as np
 
-_REPO_ROOT = Path(__file__).resolve().parents[3]
-_FOR_IMPORT = [
-    _REPO_ROOT / "stories" / "STORY-011" / "implementation",
-    _REPO_ROOT / "stories" / "STORY-012" / "implementation",
-    _REPO_ROOT / "stories" / "STORY-013" / "implementation",
-    _REPO_ROOT / "stories" / "STORY-014" / "implementation",
-    _REPO_ROOT / "stories" / "STORY-015" / "implementation",
-    _REPO_ROOT / "stories" / "STORY-025" / "implementation",
-]
-for _path in _FOR_IMPORT:
-    if str(_path) not in sys.path:
-        sys.path.insert(0, str(_path))
-
-from final_bus_glue import apply_final_bus_glue
-from grounded_quality_review import evaluate_quality_review
-from harshness_control import apply_stem_harshness_control
-from stem_stereo_imaging import apply_stem_stereo_imaging
-from transient_restoration import apply_stem_transient_restoration
+from suno_mastering.stem_stages.final_bus_glue import apply_final_bus_glue
+from suno_mastering.quality_review.grounded_quality_review import evaluate_quality_review
+from suno_mastering.stem_stages.harshness_control import apply_stem_harshness_control
+from suno_mastering.stem_stages.stem_stereo_imaging import apply_stem_stereo_imaging
+from suno_mastering.stem_stages.transient_restoration import apply_stem_transient_restoration
 
 
 class MasteringOrchestrator:

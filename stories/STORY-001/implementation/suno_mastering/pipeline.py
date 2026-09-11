@@ -20,34 +20,19 @@ from __future__ import annotations
 
 import dataclasses
 import logging
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
 import numpy as np
 
-from ._paths import bundle_root
 from .progress import NullReporter, render_stage_bar
 
-_REPO_ROOT = bundle_root()
-_FOR_STORY_11_17 = [
-    _REPO_ROOT / "stories" / "STORY-011" / "implementation",
-    _REPO_ROOT / "stories" / "STORY-012" / "implementation",
-    _REPO_ROOT / "stories" / "STORY-013" / "implementation",
-    _REPO_ROOT / "stories" / "STORY-014" / "implementation",
-    _REPO_ROOT / "stories" / "STORY-015" / "implementation",
-    _REPO_ROOT / "stories" / "STORY-025" / "implementation",
-]
-for _story_path in _FOR_STORY_11_17:
-    if str(_story_path) not in sys.path:
-        sys.path.insert(0, str(_story_path))
-
-from final_bus_glue import apply_final_bus_glue
-from grounded_quality_review import evaluate_quality_review
-from harshness_control import apply_stem_harshness_control
-from stem_stereo_imaging import apply_stem_stereo_imaging
-from transient_restoration import apply_stem_transient_restoration
+from .stem_stages.final_bus_glue import apply_final_bus_glue
+from .quality_review.grounded_quality_review import evaluate_quality_review
+from .stem_stages.harshness_control import apply_stem_harshness_control
+from .stem_stages.stem_stereo_imaging import apply_stem_stereo_imaging
+from .stem_stages.transient_restoration import apply_stem_transient_restoration
 
 from . import analysis
 from .analysis import seven_band_balance as seven_band_balance_mod

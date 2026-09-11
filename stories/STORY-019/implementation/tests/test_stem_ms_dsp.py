@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from stem_ms_dsp import _phase_null_check, decode_ms, encode_ms, process_other_stem
+from suno_mastering.stem_stages.stem_ms_dsp import _phase_null_check, decode_ms, encode_ms, process_other_stem
 
 
 def _fixture_stereo() -> np.ndarray:

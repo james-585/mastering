@@ -4,7 +4,7 @@ import pytest
 from pathlib import Path
 
 from real_world_validation import build_validation_report
-from human_review_capture import HumanReviewRecord
+from suno_mastering.quality_review.human_review_capture import HumanReviewRecord
 
 # Real reference tracks, not committed to the repo (large, commercially
 # licensed audio) -- this is a local-only regression gate. Resolved relative

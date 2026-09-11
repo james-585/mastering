@@ -9,28 +9,17 @@ a pass/reject/refine decision by themselves.
 """
 from __future__ import annotations
 
-import sys
 from dataclasses import asdict, dataclass
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import numpy as np
 
-_REPO_ROOT = Path(__file__).resolve().parents[3]
-_FOR_IMPORT = [
-    _REPO_ROOT / "stories" / "STORY-001" / "implementation",
-    _REPO_ROOT / "stories" / "STORY-025" / "implementation",
-]
-for _path in _FOR_IMPORT:
-    if str(_path) not in sys.path:
-        sys.path.insert(0, str(_path))
+from ..analysis.artifact_detection import detect_artifacts
+from ..analysis.dynamic_range import measure_dynamic_range
+from ..analysis.seven_band_balance import measure_seven_band_balance
 
-from suno_mastering.analysis.artifact_detection import detect_artifacts
-from suno_mastering.analysis.dynamic_range import measure_dynamic_range
-from suno_mastering.analysis.seven_band_balance import measure_seven_band_balance
-
-from lufs_matching import match_levels
-from review_config import GroundedReviewConfig
+from .lufs_matching import match_levels
+from .review_config import GroundedReviewConfig
 
 
 def _as_float64(audio: np.ndarray) -> np.ndarray:

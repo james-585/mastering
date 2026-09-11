@@ -119,7 +119,7 @@ def patch_seven_band(monkeypatch, original_relative_db: Dict[str, float], proces
     """Patch grounded_quality_review.measure_seven_band_balance so the first
     call (original) returns `original_relative_db` and the second call
     (level-matched processed) returns `processed_relative_db`."""
-    import grounded_quality_review as gqr
+    from suno_mastering.quality_review import grounded_quality_review as gqr
 
     results = iter([
         make_seven_band_result(original_relative_db),
@@ -133,7 +133,7 @@ def patch_seven_band(monkeypatch, original_relative_db: Dict[str, float], proces
 
 
 def patch_dynamic_range(monkeypatch, dr_original: float, dr_processed: float):
-    import grounded_quality_review as gqr
+    from suno_mastering.quality_review import grounded_quality_review as gqr
 
     values = iter([dr_original, dr_processed])
 
@@ -144,7 +144,7 @@ def patch_dynamic_range(monkeypatch, dr_original: float, dr_processed: float):
 
 
 def patch_artifacts(monkeypatch, score_original: float, score_processed: float):
-    import grounded_quality_review as gqr
+    from suno_mastering.quality_review import grounded_quality_review as gqr
 
     values = iter([score_original, score_processed])
 

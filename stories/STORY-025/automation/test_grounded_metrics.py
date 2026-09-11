@@ -10,8 +10,8 @@ import math
 import numpy as np
 import pytest
 
-from grounded_quality_review import GroundedMetrics, compute_grounded_metrics
-from lufs_matching import LevelMatchError, LevelMatchResult
+from suno_mastering.quality_review.grounded_quality_review import GroundedMetrics, compute_grounded_metrics
+from suno_mastering.quality_review.lufs_matching import LevelMatchError, LevelMatchResult
 
 from conftest import (
     ARTIFACT_FLAG_CLEAR,
@@ -129,7 +129,7 @@ def test_tc2507_spectral_shift_flag_boundary(monkeypatch, x, expect_flag):
 
 
 def test_tc2508_match_levels_called_first_and_processed_side_uses_matched_array(monkeypatch):
-    import grounded_quality_review as gqr
+    from suno_mastering.quality_review import grounded_quality_review as gqr
 
     original, processed, sr = make_f2501(6.0)
     call_order = []
@@ -180,7 +180,7 @@ def test_tc2508_match_levels_called_first_and_processed_side_uses_matched_array(
 
 
 def test_tc2509_match_levels_failure_propagates_and_measurements_not_attempted(monkeypatch):
-    import grounded_quality_review as gqr
+    from suno_mastering.quality_review import grounded_quality_review as gqr
 
     original, processed, sr = make_f2503()
 
@@ -209,7 +209,7 @@ def test_tc2509_match_levels_failure_propagates_and_measurements_not_attempted(m
 
 
 def test_tc2510_width_and_peak_computed_on_raw_unmatched_pair(monkeypatch):
-    import grounded_quality_review as gqr
+    from suno_mastering.quality_review import grounded_quality_review as gqr
 
     original, processed, sr = make_f2501(6.0)
     patch_no_flags(monkeypatch)

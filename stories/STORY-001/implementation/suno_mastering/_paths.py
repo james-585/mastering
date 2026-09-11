@@ -1,17 +1,23 @@
 """Repo-root / bundle-root resolution shared by every module that currently
 does `Path(__file__).resolve().parents[4]` to find the repo root -- config.py
-(targets.json), cli.py/pipeline.py/stem_integration.py (sibling
-stories/STORY-0XX/implementation folders on sys.path), webui.py (previously
-the .env token file), and __init__.py (suno_dsp build directories).
+(targets.json), webui.py (previously the .env token file), and __init__.py
+(suno_dsp build directories).
+
+Historically cli.py/pipeline.py/stem_integration.py also used bundle_root()
+here to sys.path-insert sibling stories/STORY-0XX/implementation folders so
+their bare-module code could be imported. That stitching is gone (2026-09-12
+restructure): those story modules now live as proper submodules under
+suno_mastering/ (stem_stages/, quality_review/) and are imported normally.
+bundle_root()/frozen_root() are still needed for the remaining, unrelated
+data-file-location uses above.
 
 In a normal source checkout, "repo root" is that parents[4] directory as
 before. Frozen into a PyInstaller bundle, __file__ lives inside a temporary
 extraction directory (onefile) or the app's install folder (onedir) that has
 nothing to do with the source tree -- so bundle_root() switches to
 sys._MEIPASS (PyInstaller's own resource root) instead. The PyInstaller spec
-is responsible for placing targets.json, the story implementation folders,
-etc. at the same *relative* layout inside the bundle so every existing
-`bundle_root() / "stories" / "STORY-0XX" / "implementation"` expression keeps
+is responsible for placing targets.json etc. at the same *relative* layout
+inside the bundle so every existing `bundle_root() / ...` expression keeps
 resolving correctly without each call site needing to know it's frozen.
 
 Writable state (currently just the HF token) is different: a frozen app's

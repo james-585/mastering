@@ -1,6 +1,6 @@
 import numpy as np
 
-from final_quality_review import evaluate_quality_review
+from suno_mastering.stem_stages.final_quality_review import evaluate_quality_review
 
 
 SR = 48000

@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from human_review_capture import HumanReviewRequiredError
+from suno_mastering.quality_review.human_review_capture import HumanReviewRequiredError
 import real_world_validation as rwv
 
 

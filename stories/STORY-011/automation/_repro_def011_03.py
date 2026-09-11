@@ -3,7 +3,7 @@ import sys
 import numpy as np
 
 sys.path.insert(0, r"c:\Users\james\Documents\suno-mastering\stories\STORY-011\implementation")
-from transient_restoration import _local_attack_ratio
+from suno_mastering.stem_stages.transient_restoration import _local_attack_ratio
 
 sr = 44100
 t = np.arange(int(0.5 * sr)) / sr

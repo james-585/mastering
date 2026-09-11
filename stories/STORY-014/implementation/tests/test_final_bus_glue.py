@@ -1,6 +1,6 @@
 import numpy as np
 
-from final_bus_glue import apply_final_bus_glue
+from suno_mastering.stem_stages.final_bus_glue import apply_final_bus_glue
 
 SR = 44100
 

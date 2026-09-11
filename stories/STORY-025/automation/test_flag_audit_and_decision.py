@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from grounded_quality_review import evaluate_quality_review
+from suno_mastering.quality_review.grounded_quality_review import evaluate_quality_review
 
 from conftest import (
     ARTIFACT_FLAG_CLEAR,

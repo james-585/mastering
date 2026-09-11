@@ -1,6 +1,6 @@
 import numpy as np
 
-from audio_forensics import (
+from suno_mastering.stem_stages.audio_forensics import (
     DiagnosticsReport,
     flag_clipping,
     flag_phase_mismatch,

@@ -16,21 +16,12 @@ import logging
 import sys
 from pathlib import Path
 
-from ._paths import bundle_root
 from .config import MasteringConfig, StemConfig
 from .errors import MasteringError
 from .pipeline import master
 from .progress import ConsoleReporter, NullReporter, render_stage_bar
 from .report.render import render_json, render_markdown
-
-# STORY-024: operator-facing workflow screen lives in the story implementation
-# folder (same cross-story pattern as pipeline.py uses for stories 11-15).
-_REPO_ROOT = bundle_root()
-_STORY_024_IMPL = _REPO_ROOT / "stories" / "STORY-024" / "implementation"
-if str(_STORY_024_IMPL) not in sys.path:
-    sys.path.insert(0, str(_STORY_024_IMPL))
-
-from workflow_screen import render_error, render_run_header, render_summary
+from .workflow_screen import render_error, render_run_header, render_summary
 
 
 def _load_config(config_path: str) -> MasteringConfig:

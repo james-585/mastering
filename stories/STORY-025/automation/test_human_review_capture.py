@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from human_review_capture import HumanReviewRequiredError, capture_human_review
+from suno_mastering.quality_review.human_review_capture import HumanReviewRequiredError, capture_human_review
 
 
 def _write_review(track_path: Path, payload: dict) -> Path:

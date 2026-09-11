@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from stem_stereo_imaging import apply_stem_stereo_imaging
+from suno_mastering.stem_stages.stem_stereo_imaging import apply_stem_stereo_imaging
 
 
 SR = 44100

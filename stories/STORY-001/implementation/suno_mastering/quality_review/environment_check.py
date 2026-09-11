@@ -13,7 +13,6 @@ rather than re-implementing model loading/inference here.
 """
 from __future__ import annotations
 
-import sys
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -23,18 +22,13 @@ from typing import Dict, List, Optional
 import numpy as np
 import soundfile as sf
 
-_REPO_ROOT = Path(__file__).resolve().parents[3]
-_FOR_IMPORT = [
-    _REPO_ROOT / "stories" / "STORY-001" / "implementation",
-]
-for _path in _FOR_IMPORT:
-    if str(_path) not in sys.path:
-        sys.path.insert(0, str(_path))
+from ..config import MasteringConfig
+from ..errors import DependencyError
+from ..io.stem_separation import split_stems
 
-from suno_mastering.config import MasteringConfig
-from suno_mastering.errors import DependencyError
-from suno_mastering.io.stem_separation import split_stems
-
+# quality_review/environment_check.py -> suno_mastering -> implementation ->
+# STORY-001 -> stories -> repo root
+_REPO_ROOT = Path(__file__).resolve().parents[5]
 _DEFAULT_FIXTURE = _REPO_ROOT / "Reference Tracks" / "Sunday Club.wav"
 _FIXTURE_CLIP_SECONDS = 8.0          # short slice -- smoke test, not a full-track re-run
 _FIXTURE_CLIP_OFFSET_SECONDS = 30.0  # Gate 1 Finding 4 action item -- see architecture.md §5.2

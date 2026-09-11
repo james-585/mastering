@@ -4,7 +4,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from lufs_matching import LevelMatchError, match_levels
+from suno_mastering.quality_review.lufs_matching import LevelMatchError, match_levels
 
 from conftest import make_f2501, make_f2501_stereo, make_f2502, make_f2503
 
@@ -43,7 +43,7 @@ def test_tc2533_stereo_pair_gain_applied_identically_to_both_channels():
 
 
 def test_tc2534_boundary_residual_exactly_at_tolerance_is_within(monkeypatch):
-    import lufs_matching as lm
+    from suno_mastering.quality_review import lufs_matching as lm
 
     original, processed, sr = make_f2501(1.0)
     values = iter([-14.0, -15.0, -14.5])
@@ -59,7 +59,7 @@ def test_tc2534_boundary_residual_exactly_at_tolerance_is_within(monkeypatch):
 
 
 def test_tc2535_boundary_residual_over_tolerance_raises(monkeypatch):
-    import lufs_matching as lm
+    from suno_mastering.quality_review import lufs_matching as lm
 
     original, processed, sr = make_f2501(1.0)
     values = iter([-14.0, -15.0, -14.501])

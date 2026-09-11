@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 import soundfile as sf
 
-from environment_check import EnvironmentVerificationError, verify_stem_separation_environment
+from suno_mastering.quality_review.environment_check import EnvironmentVerificationError, verify_stem_separation_environment
 from suno_mastering.errors import DependencyError
 from suno_mastering.io.stem_separation import StemBundle
 
@@ -40,7 +40,7 @@ def test_tc2522_short_fixture_raises_rather_than_truncating(tmp_path):
 
 
 def test_tc2523_clip_read_starting_at_offset_not_file_start(tmp_path, monkeypatch):
-    import environment_check as ec
+    from suno_mastering.quality_review import environment_check as ec
 
     sr = 44100
     silence = np.zeros(int(sr * 30.0))
@@ -71,7 +71,7 @@ def test_tc2523_clip_read_starting_at_offset_not_file_start(tmp_path, monkeypatc
 
 
 def test_tc2524_degenerate_zero_stem_raises(tmp_path, monkeypatch):
-    import environment_check as ec
+    from suno_mastering.quality_review import environment_check as ec
 
     sr = 44100
     n = int(sr * 40.0)
@@ -91,7 +91,7 @@ def test_tc2524_degenerate_zero_stem_raises(tmp_path, monkeypatch):
 
 
 def test_tc2525_nan_in_stem_raises(tmp_path, monkeypatch):
-    import environment_check as ec
+    from suno_mastering.quality_review import environment_check as ec
 
     sr = 44100
     n = int(sr * 40.0)
@@ -112,7 +112,7 @@ def test_tc2525_nan_in_stem_raises(tmp_path, monkeypatch):
 
 
 def test_tc2526_import_failure_raises_no_silent_fallback(tmp_path, monkeypatch):
-    import environment_check as ec
+    from suno_mastering.quality_review import environment_check as ec
 
     sr = 44100
     n = int(sr * 40.0)
