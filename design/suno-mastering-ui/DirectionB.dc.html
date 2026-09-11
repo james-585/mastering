@@ -1,0 +1,294 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { color: var(--accent-strong); }
+
+  .theme-light {
+    --bg: oklch(0.98 0.004 95);
+    --bg-panel: oklch(1 0 0);
+    --bg-elevated: oklch(0.965 0.006 95);
+    --bg-input: oklch(0.99 0.003 95);
+    --border: oklch(0.885 0.007 95);
+    --divider: oklch(0.92 0.006 95);
+    --text-primary: oklch(0.2 0.012 258);
+    --text-secondary: oklch(0.42 0.016 258);
+    --text-muted: oklch(0.56 0.014 258);
+    --accent: oklch(0.5 0.15 275);
+    --accent-strong: oklch(0.4 0.16 275);
+    --accent-soft: oklch(0.5 0.15 275 / 0.08);
+    --cta: oklch(0.5 0.15 275);
+    --ok: oklch(0.52 0.13 150);
+    --ok-bg: oklch(0.52 0.13 150 / 0.1);
+    --flag: oklch(0.58 0.15 55);
+    --flag-bg: oklch(0.58 0.15 55 / 0.12);
+    --info: oklch(0.5 0.1 235);
+    --info-bg: oklch(0.5 0.1 235 / 0.1);
+    --track: oklch(0.89 0.006 95);
+    --console-bg: oklch(0.97 0.005 95);
+    --grid-dot: oklch(0.9 0.006 95);
+  }
+  .theme-dark {
+    --bg: oklch(0.14 0.012 258);
+    --bg-panel: oklch(0.18 0.013 258);
+    --bg-elevated: oklch(0.22 0.014 258);
+    --bg-input: oklch(0.11 0.011 258);
+    --border: oklch(0.3 0.014 258);
+    --divider: oklch(0.26 0.013 258);
+    --text-primary: oklch(0.93 0.008 258);
+    --text-secondary: oklch(0.74 0.013 258);
+    --text-muted: oklch(0.57 0.015 258);
+    --accent: oklch(0.72 0.13 275);
+    --accent-strong: oklch(0.8 0.14 275);
+    --accent-soft: oklch(0.72 0.13 275 / 0.14);
+    --cta: oklch(0.72 0.13 275);
+    --ok: oklch(0.74 0.13 150);
+    --ok-bg: oklch(0.74 0.13 150 / 0.14);
+    --flag: oklch(0.78 0.13 60);
+    --flag-bg: oklch(0.78 0.13 60 / 0.15);
+    --info: oklch(0.7 0.09 235);
+    --info-bg: oklch(0.7 0.09 235 / 0.14);
+    --track: oklch(0.29 0.014 258);
+    --console-bg: oklch(0.1 0.01 258);
+    --grid-dot: oklch(0.24 0.014 258);
+  }
+
+  .app { font-family: Manrope, sans-serif; background: var(--bg); color: var(--text-primary); }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+  .panel { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 4px; }
+  .btn { font-family: Manrope, sans-serif; font-weight: 600; border-radius: 4px; cursor: pointer; font-size: 13px; }
+  .btn-outline { background: var(--bg-panel); border: 1.5px solid var(--border); color: var(--text-primary); }
+  .btn-solid { background: var(--cta); border: 1.5px solid var(--cta); color: oklch(0.99 0 0); }
+  .label-cap { font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted); }
+  .badge-dot { width: 16px; height: 16px; border-radius: 50%; flex: none; display: flex; align-items: center; justify-content: center; }
+  .field-row { display: grid; grid-template-columns: 200px 1fr; gap: 20px; padding: 18px 0; border-bottom: 1px solid var(--divider); }
+  .field-row:last-child { border-bottom: none; }
+  .field-name { font-weight: 700; font-size: 13px; color: var(--text-primary); }
+  .field-desc { margin: 6px 0 0; font-size: 11.5px; line-height: 1.6; color: var(--text-muted); max-width: 480px; }
+  .slider-track { position: relative; width: 100%; height: 2px; background: var(--track); flex: 1; }
+  .slider-fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent); }
+  .slider-thumb { position: absolute; top: 50%; width: 10px; height: 10px; background: var(--bg-panel); border: 2px solid var(--accent); transform: translate(-50%,-50%) rotate(45deg); }
+  .num-box { font-size: 12.5px; font-weight: 600; color: var(--text-primary); background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 3px; padding: 4px 8px; min-width: 56px; text-align: center; flex: none; }
+  .reset-btn { flex: none; width: 22px; height: 22px; border-radius: 3px; background: var(--bg-panel); border: 1px solid var(--border); color: var(--text-muted); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+  .nav-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 14px; border-radius: 6px; font-size: 12.5px; font-weight: 600; color: var(--text-secondary); cursor: pointer; }
+  .nav-item.active { background: var(--accent-soft); color: var(--accent-strong); }
+  .nav-dot { width: 6px; height: 6px; border-radius: 50%; flex: none; }
+  .chip { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 3px; background: var(--bg-elevated); color: var(--text-muted); border: 1px solid var(--border); flex: none; }
+</style>
+</helmet>
+
+<div class="app {{themeClass}}" style="min-height: 100%; display:flex;">
+
+  <!-- Sidebar -->
+  <div style="width:250px; flex:none; background:var(--bg-panel); border-right:1px solid var(--border); padding:22px 16px; display:flex; flex-direction:column; gap:22px;">
+    <div style="display:flex; align-items:center; gap:10px; padding:0 6px;">
+      <div style="width:26px; height:26px; border-radius:6px; border:1.5px solid var(--accent); display:flex; align-items:center; justify-content:center;">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2-8 4 16 2-8h6"/></svg>
+      </div>
+      <div>
+        <div style="font-weight:800; font-size:13.5px;">Suno Mastering</div>
+        <div style="font-size:10px; color:var(--text-muted);">Precision console</div>
+      </div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:2px;">
+      <div class="label-cap" style="padding:0 14px 6px;">Session</div>
+      <div class="nav-item active">Overview &middot; file &amp; run</div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:2px;">
+      <div class="label-cap" style="padding:0 14px 6px;">Settings</div>
+      <div class="nav-item active"><span>Loudness &amp; true peak</span><div class="nav-dot" style="background:var(--accent);"></div></div>
+      <div class="nav-item"><span>Dynamic range</span><div class="nav-dot" style="background:var(--border);"></div></div>
+      <div class="nav-item"><span>Frequency balance</span><div class="nav-dot" style="background:var(--flag);"></div></div>
+      <div class="nav-item"><span>Stereo</span><div class="nav-dot" style="background:var(--border);"></div></div>
+      <div class="nav-item"><span>Stem separation</span><div class="nav-dot" style="background:var(--accent);"></div></div>
+      <div class="nav-item"><span>Adaptive harshness</span><div class="nav-dot" style="background:var(--accent);"></div></div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:2px;">
+      <div class="label-cap" style="padding:0 14px 6px;">Experimental</div>
+      <div class="nav-item"><span>Whistle repair</span><div class="nav-dot" style="background:var(--border);"></div></div>
+      <div class="nav-item"><span>Transient shaping</span><div class="nav-dot" style="background:var(--border);"></div></div>
+      <div class="nav-item"><span>Swish collapse</span><div class="nav-dot" style="background:var(--border);"></div></div>
+    </div>
+
+    <div class="nav-item" style="color:var(--text-muted);">Advanced (18) &rsaquo;</div>
+  </div>
+
+  <!-- Main -->
+  <div style="flex:1; padding:26px 36px 60px; display:flex; flex-direction:column; gap:20px; max-width:980px;">
+
+    <!-- Token row -->
+    <div style="display:flex; align-items:center; justify-content:space-between;">
+      <div>
+        <div style="font-weight:800; font-size:17px;">Overview</div>
+        <div style="font-size:12px; color:var(--text-muted); margin-top:2px;">Load a track, review the diagnostic, run the master.</div>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <div class="mono" style="font-size:12px; background:var(--bg-elevated); border:1px solid var(--border); border-radius:4px; padding:7px 10px; color:var(--text-secondary); width:170px;">hf_&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;</div>
+        <button class="btn btn-outline" style="padding:7px 12px;">Save token</button>
+      </div>
+    </div>
+
+    <!-- Quick controls -->
+    <div class="panel" style="padding:20px 24px; display:flex; flex-direction:column; gap:16px;">
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <label class="label-cap">Input WAV path</label>
+          <div style="display:flex; gap:8px;">
+            <div class="mono" style="flex:1; border:1px solid var(--border); border-radius:4px; padding:9px 11px; font-size:12.5px; background:var(--bg-input);">C:\Users\james\Tracks\midnight_drive_v3.wav</div>
+            <button class="btn btn-outline" style="padding:9px 13px;">Browse</button>
+          </div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <label class="label-cap">Output directory (optional)</label>
+          <div class="mono" style="border:1px solid var(--border); border-radius:4px; padding:9px 11px; font-size:12.5px; background:var(--bg-input); color:var(--text-muted);">Same folder as input</div>
+        </div>
+      </div>
+      <div style="display:flex; align-items:center; justify-content:space-between; padding-top:4px; border-top:1px solid var(--divider);">
+        <button class="btn btn-outline" style="padding:10px 16px; margin-top:14px;">Diagnose &amp; suggest settings</button>
+        <button class="btn btn-solid" style="padding:11px 22px; margin-top:14px;">Run mastering &rarr;</button>
+      </div>
+    </div>
+
+    <!-- Diagnose results -->
+    <div class="panel" style="padding:20px 24px; display:flex; flex-direction:column; gap:14px;">
+      <div style="display:flex; align-items:baseline; justify-content:space-between;">
+        <div style="font-weight:700; font-size:13.5px;">Diagnostic readout</div>
+        <div class="mono" style="font-size:11px; color:var(--text-muted);">48kHz &middot; stereo &middot; 3:42</div>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <div style="display:flex; align-items:flex-start; gap:10px;">
+          <div class="badge-dot" style="background:var(--flag-bg);"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="var(--flag)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 20h20L12 3Z"/><path d="M12 17h.01"/></svg></div>
+          <div style="font-size:12.5px;"><span class="mono" style="font-weight:700;">True peak &minus;0.3 dBTP</span><span style="color:var(--text-muted);"> &mdash; above the ceiling (&minus;1.0); the limiter will bring this down.</span></div>
+        </div>
+        <div style="display:flex; align-items:flex-start; gap:10px;">
+          <div class="badge-dot" style="background:var(--flag-bg);"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="var(--flag)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 20h20L12 3Z"/><path d="M12 17h.01"/></svg></div>
+          <div style="font-size:12.5px;"><span class="mono" style="font-weight:700;">Presence/harsh +4.2 dB</span><span style="color:var(--text-muted);"> &mdash; outside genre reference; corrective EQ will pull this in.</span></div>
+        </div>
+        <div style="display:flex; align-items:flex-start; gap:10px;">
+          <div class="badge-dot" style="background:var(--flag-bg);"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="var(--flag)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 20h20L12 3Z"/><path d="M12 17h.01"/></svg></div>
+          <div style="font-size:12.5px;"><span class="mono" style="font-weight:700;">Stereo correlation 0.04</span><span style="color:var(--text-muted);"> &mdash; below mono-compatible floor; may cancel on mono playback.</span></div>
+        </div>
+        <div style="display:flex; align-items:flex-start; gap:10px;">
+          <div class="badge-dot" style="background:var(--ok-bg);"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="var(--ok)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5L16 9"/></svg></div>
+          <div style="font-size:12.5px;"><span class="mono" style="font-weight:700;">Dynamic range DR11</span><span style="color:var(--text-muted);"> &mdash; above the floor (DR8).</span></div>
+        </div>
+        <div style="display:flex; align-items:flex-start; gap:10px;">
+          <div class="badge-dot" style="background:var(--ok-bg);"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="var(--ok)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5L16 9"/></svg></div>
+          <div style="font-size:12.5px;"><span class="mono" style="font-weight:700;">No clipping detected</span></div>
+        </div>
+      </div>
+
+      <div style="border-top:1px solid var(--divider); padding-top:14px; display:flex; flex-direction:column; gap:8px;">
+        <div class="label-cap" style="color:var(--accent-strong);">Suggested &middot; pre-filled below</div>
+        <div style="font-size:12px; color:var(--text-secondary); line-height:1.6;">
+          <strong>Stem separation &rarr; on</strong> &mdash; correlation 0.04 is below the mono-compatible floor; bass mono-summing targets this directly.<br>
+          <strong>Adaptive harshness correction &rarr; on</strong> &mdash; presence band is +4.2&nbsp;dB vs. the 3.0&nbsp;dB threshold.
+        </div>
+      </div>
+    </div>
+
+    <!-- Section: Loudness & True Peak (selected in sidebar) -->
+    <div class="panel" style="padding:22px 24px;">
+      <div style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:4px;">
+        <div style="font-weight:700; font-size:14px;">Loudness &amp; true peak</div>
+        <div class="chip">BS.1770-4</div>
+      </div>
+      <div style="font-size:11.5px; color:var(--text-muted); margin-bottom:6px;">Integrated loudness &amp; inter-sample peak targets the solver aims for.</div>
+
+      <div class="field-row">
+        <div class="field-name">LUFS target (low)</div>
+        <div>
+          <div style="display:flex; align-items:center; gap:12px;">
+            <div class="slider-track"><div class="slider-fill" style="width:62%;"></div><div class="slider-thumb" style="left:62%;"></div></div>
+            <div class="num-box mono">-14.5</div>
+            <div class="reset-btn"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 1 3 6.7"/><path d="M3 16v-4h4"/></svg></div>
+          </div>
+          <p class="field-desc">The quiet edge of the loudness band the solver aims for (LUFS integrated). Higher = louder, less headroom. &minus;14.5 matches Spotify/YouTube's normalization target, so tracks landing here won't get turned down.</p>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field-name">LUFS ceiling</div>
+        <div>
+          <div style="display:flex; align-items:center; gap:12px;">
+            <div class="slider-track"><div class="slider-fill" style="width:70%;"></div><div class="slider-thumb" style="left:70%;"></div></div>
+            <div class="num-box mono">-13.5</div>
+            <div class="reset-btn"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 1 3 6.7"/><path d="M3 16v-4h4"/></svg></div>
+          </div>
+          <p class="field-desc">The loudest the solver will ever push the master. Higher = louder, more risk of sounding squashed. &minus;13.5 leaves the DR floor reachable.</p>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field-name">True peak ceiling</div>
+        <div>
+          <div style="display:flex; align-items:center; gap:12px;">
+            <div class="slider-track"><div class="slider-fill" style="width:69%;"></div><div class="slider-thumb" style="left:69%;"></div></div>
+            <div class="num-box mono">-1.0</div>
+            <div class="reset-btn"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 1 3 6.7"/><path d="M3 16v-4h4"/></svg></div>
+          </div>
+          <p class="field-desc">The hardest limit in the pipeline. &minus;1.0&nbsp;dBTP is the standard streaming-safe ceiling &mdash; don't exceed it for streaming platforms.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Compact list of remaining sections -->
+    <div class="panel" style="padding:6px 0;">
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:13px 24px; border-bottom:1px solid var(--divider);">
+        <div style="font-size:12.5px; font-weight:700;">Dynamic range</div>
+        <div style="display:flex; align-items:center; gap:10px;"><span class="mono" style="font-size:11.5px; color:var(--text-muted);">DR8 floor &middot; 3.0dB max reduction</span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></div>
+      </div>
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:13px 24px; border-bottom:1px solid var(--divider);">
+        <div style="font-size:12.5px; font-weight:700;">Frequency balance</div>
+        <div style="display:flex; align-items:center; gap:10px;"><span class="chip" style="background:var(--flag-bg); color:var(--flag); border-color:transparent;">1 flagged</span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></div>
+      </div>
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:13px 24px; border-bottom:1px solid var(--divider);">
+        <div style="font-size:12.5px; font-weight:700;">Stereo</div>
+        <div style="display:flex; align-items:center; gap:10px;"><span class="mono" style="font-size:11.5px; color:var(--text-muted);">4 settings</span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></div>
+      </div>
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:13px 24px; border-bottom:1px solid var(--divider);">
+        <div style="font-size:12.5px; font-weight:700;">Stem separation</div>
+        <div style="display:flex; align-items:center; gap:10px;"><span class="chip" style="background:var(--accent-soft); color:var(--accent-strong); border-color:transparent;">on &middot; htdemucs</span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></div>
+      </div>
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:13px 24px; border-bottom:1px solid var(--divider);">
+        <div style="font-size:12.5px; font-weight:700;">Adaptive harshness correction</div>
+        <div style="display:flex; align-items:center; gap:10px;"><span class="chip" style="background:var(--accent-soft); color:var(--accent-strong); border-color:transparent;">default on</span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></div>
+      </div>
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:13px 24px; border-bottom:1px solid var(--divider);">
+        <div style="font-size:12.5px; font-weight:700;">Experimental &mdash; whistle / transient / swish</div>
+        <div style="display:flex; align-items:center; gap:10px;"><span class="chip">off &middot; not built</span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></div>
+      </div>
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:13px 24px; opacity:.65;">
+        <div style="font-size:12.5px; font-weight:700; color:var(--text-muted);">Advanced / rarely-tuned constants</div>
+        <div style="display:flex; align-items:center; gap:10px;"><span class="mono" style="font-size:11.5px; color:var(--text-muted);">18 settings</span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</x-dc>
+<script data-dc-script data-props='{"dark":{"editor":"boolean","default":false,"section":"Theme"}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const dark = this.props.dark ?? false;
+    return { themeClass: dark ? 'theme-dark' : 'theme-light' };
+  }
+}
+</script>
+</body>
+</html>

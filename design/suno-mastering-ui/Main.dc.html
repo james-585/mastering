@@ -1,0 +1,504 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  a { color: var(--accent); text-decoration: none; }
+
+  .finish-dark {
+    --room: radial-gradient(120% 90% at 50% -10%, #2a2620 0%, #17140f 55%, #100e0b 100%);
+    --metal-1: #4a4e54;
+    --metal-2: #2d2f34;
+    --metal-3: #1a1c1f;
+    --metal-edge: #0c0d0e;
+    --plate-text: rgba(255,255,255,.58);
+    --plate-text-dim: rgba(255,255,255,.24);
+    --screw-1: #9498a0;
+    --screw-2: #232529;
+    --lcd-bg: #060a07;
+    --lcd-fg: #7CFFA0;
+    --lcd-fg-amber: #ffbf5e;
+    --knob-face-1: #7a7f87;
+    --knob-face-2: #34373c;
+    --accent: oklch(0.62 0.19 35);
+    --led-ok: oklch(0.78 0.16 150);
+    --led-flag: oklch(0.8 0.15 70);
+    --led-info: oklch(0.74 0.1 220);
+    --groove-lo: rgba(0,0,0,.55);
+    --groove-hi: rgba(255,255,255,.05);
+  }
+  .finish-light {
+    --room: radial-gradient(120% 90% at 50% -10%, #eceff2 0%, #dfe2e6 55%, #d3d6da 100%);
+    --metal-1: #f1f2f4;
+    --metal-2: #d3d5d9;
+    --metal-3: #b6b9bd;
+    --metal-edge: #9a9da1;
+    --plate-text: rgba(24,26,30,.62);
+    --plate-text-dim: rgba(24,26,30,.28);
+    --screw-1: #fbfbfc;
+    --screw-2: #9a9da1;
+    --lcd-bg: #050805;
+    --lcd-fg: #59e08a;
+    --lcd-fg-amber: #e8a83f;
+    --knob-face-1: #f6f7f8;
+    --knob-face-2: #c3c5c9;
+    --accent: oklch(0.5 0.19 35);
+    --led-ok: oklch(0.62 0.16 150);
+    --led-flag: oklch(0.65 0.15 65);
+    --led-info: oklch(0.58 0.1 220);
+    --groove-lo: rgba(0,0,0,.28);
+    --groove-hi: rgba(255,255,255,.5);
+  }
+
+  .page { font-family: Manrope, sans-serif; background: var(--room); }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+  .plate-label { font-size: 9.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--plate-text); white-space: nowrap; }
+  .plate-label-dim { font-size: 9px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--plate-text-dim); white-space: nowrap; }
+  .lcd { font-family: 'JetBrains Mono', monospace; background: var(--lcd-bg); color: var(--lcd-fg); text-shadow: 0 0 6px currentColor; border-radius: 3px; border: 1px solid var(--metal-edge); box-shadow: inset 0 2px 5px rgba(0,0,0,.7), 0 1px 0 rgba(255,255,255,.06); }
+  .lcd-amber { color: var(--lcd-fg-amber); }
+  .screw { width: 10px; height: 10px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, var(--screw-1), var(--screw-2) 75%); box-shadow: 0 1px 1px rgba(0,0,0,.5); position: relative; flex: none; }
+  .screw::after { content: ""; position: absolute; top: 50%; left: 1.5px; right: 1.5px; height: 1px; background: rgba(0,0,0,.55); transform: translateY(-50%) rotate(24deg); }
+  .groove { height: 3px; background: linear-gradient(180deg, var(--groove-lo), var(--groove-hi)); border-radius: 2px; margin: 0 22px; }
+  .module-title { display: flex; align-items: center; gap: 8px; }
+  .module-title .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 5px var(--accent); }
+  .btn-plate { font-family: Manrope, sans-serif; font-weight: 700; font-size: 12px; letter-spacing: .04em; text-transform: uppercase; color: var(--plate-text); background: linear-gradient(180deg, var(--metal-1), var(--metal-2)); border: 1px solid var(--metal-edge); border-radius: 6px; box-shadow: 0 2px 0 var(--metal-edge), inset 0 1px 0 rgba(255,255,255,.15); cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
+  .jewel { width: 9px; height: 9px; border-radius: 50%; flex: none; position: relative; }
+  .jewel::after { content:""; position:absolute; inset: 1.5px; border-radius: 50%; background: rgba(255,255,255,.5); filter: blur(0.5px); opacity:.5; }
+  .knob-value { display:flex; flex-direction:column; align-items:center; gap:7px; width: 108px; }
+  .switch-track { width: 34px; height: 19px; border-radius: 4px; background: linear-gradient(180deg, var(--metal-2), var(--metal-3)); border: 1px solid var(--metal-edge); position: relative; box-shadow: inset 0 1px 3px rgba(0,0,0,.6); flex: none; }
+  .switch-lever { position: absolute; left: 3px; right: 3px; height: 8px; border-radius: 2px; background: linear-gradient(180deg, var(--metal-1), var(--knob-face-2)); box-shadow: 0 1px 0 rgba(255,255,255,.15); }
+</style>
+</helmet>
+
+<svg width="0" height="0" style="position:absolute;">
+  <defs>
+    <radialGradient id="knobGrad" cx="35%" cy="28%" r="78%">
+      <stop offset="0%" stop-color="var(--knob-face-1)"/>
+      <stop offset="65%" stop-color="var(--knob-face-2)"/>
+      <stop offset="100%" stop-color="var(--metal-edge)"/>
+    </radialGradient>
+    <radialGradient id="knobGradSm" cx="35%" cy="28%" r="78%">
+      <stop offset="0%" stop-color="var(--knob-face-1)"/>
+      <stop offset="65%" stop-color="var(--knob-face-2)"/>
+      <stop offset="100%" stop-color="var(--metal-edge)"/>
+    </radialGradient>
+  </defs>
+</svg>
+
+<div class="page {{finishClass}}" style="min-height:100%; padding:44px 0 150px; display:flex; justify-content:center;">
+<div style="width:1360px; background:linear-gradient(160deg, var(--metal-1), var(--metal-2) 40%, var(--metal-3)); border-radius:10px; box-shadow: 0 30px 60px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.08); display:flex;">
+
+  <!-- left rack ear -->
+  <div style="width:34px; flex:none; background:linear-gradient(90deg, var(--metal-3), var(--metal-2)); border-right:1px solid var(--metal-edge); display:flex; flex-direction:column; align-items:center; justify-content:space-between; padding:26px 0;">
+    <div class="screw"></div><div class="screw"></div><div class="screw"></div><div class="screw"></div>
+  </div>
+
+  <!-- chassis body -->
+  <div style="flex:1; padding:26px 30px 36px; display:flex; flex-direction:column; gap:20px;">
+
+    <!-- Brand header -->
+    <div style="display:flex; align-items:center; justify-content:space-between;">
+      <div style="display:flex; align-items:center; gap:14px;">
+        <svg width="30" height="30" viewBox="0 0 30 30"><circle cx="15" cy="15" r="14" fill="url(#knobGrad)" stroke="var(--metal-edge)"/><path d="M8 15h3l1.5-6 3 12 1.5-6h5" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <div>
+          <div style="font-weight:800; font-size:16px; letter-spacing:.08em; color:var(--plate-text);">SUNO&nbsp;MASTERING</div>
+          <div class="plate-label-dim" style="margin-top:2px;">Type&nbsp;II Mastering Console &middot; Local Unit</div>
+        </div>
+      </div>
+      <div style="display:flex; align-items:center; gap:16px;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div class="jewel" style="background:var(--led-ok); box-shadow:0 0 7px var(--led-ok);"></div>
+          <div class="plate-label">Power</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div class="plate-label-dim">HF&nbsp;AUTH</div>
+          <div class="lcd" style="padding:6px 10px; font-size:11.5px; width:150px;">hf_&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;</div>
+          <button class="btn-plate" style="padding:7px 12px;">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="groove"></div>
+
+    <!-- SOURCE module -->
+    <div>
+      <div class="module-title" style="margin-bottom:12px;"><span class="dot"></span><span class="plate-label">Source</span></div>
+      <div style="display:flex; gap:16px; align-items:flex-end;">
+        <div style="flex:1; display:flex; flex-direction:column; gap:6px;">
+          <div class="plate-label-dim">Input WAV path</div>
+          <div class="lcd mono" style="padding:11px 14px; font-size:13px;">C:\Users\james\Tracks\midnight_drive_v3.wav</div>
+        </div>
+        <button class="btn-plate" style="padding:11px 16px;">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>
+          Load
+        </button>
+      </div>
+      <div style="display:flex; gap:16px; align-items:flex-end; margin-top:12px;">
+        <div style="flex:1; display:flex; flex-direction:column; gap:6px;">
+          <div class="plate-label-dim">Output directory (optional)</div>
+          <div class="lcd mono" style="padding:11px 14px; font-size:13px; opacity:.55;">Same folder as input</div>
+        </div>
+        <button class="btn-plate" style="padding:11px 18px;">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2-8 4 16 2-8h6"/></svg>
+          Diagnose
+        </button>
+        <button style="padding:12px 26px; border-radius:6px; border:1px solid var(--metal-edge); background:linear-gradient(180deg, oklch(0.68 0.16 40), oklch(0.56 0.17 38)); box-shadow: 0 2px 0 oklch(0.4 0.14 35), inset 0 1px 0 rgba(255,255,255,.22); font-family:Manrope; font-weight:800; font-size:13px; letter-spacing:.05em; color:oklch(0.99 0 0); text-transform:uppercase; cursor:pointer; display:flex; align-items:center; gap:9px;">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" stroke="none"><path d="M7 5v14l12-7L7 5Z"/></svg>
+          Master
+        </button>
+      </div>
+    </div>
+
+    <div class="groove"></div>
+
+    <!-- DIAGNOSTIC module -->
+    <div>
+      <div class="module-title" style="margin-bottom:12px; justify-content:space-between;">
+        <div style="display:flex; align-items:center; gap:8px;"><span class="dot"></span><span class="plate-label">Diagnostic readout</span></div>
+        <div class="plate-label-dim mono">48kHz &middot; STEREO &middot; 3:42</div>
+      </div>
+      <div style="background:var(--metal-3); border-radius:8px; border:1px solid var(--metal-edge); box-shadow:inset 0 2px 6px rgba(0,0,0,.4); padding:16px 18px; display:flex; flex-direction:column; gap:10px;">
+        <div style="display:flex; align-items:center; gap:11px;">
+          <div class="jewel" style="background:var(--led-flag); box-shadow:0 0 6px var(--led-flag);"></div>
+          <div class="lcd mono lcd-amber" style="padding:3px 8px; font-size:11.5px;">-0.3 dBTP</div>
+          <div style="font-size:11.5px; color:var(--plate-text-dim);">True peak &mdash; above ceiling (&minus;1.0); limiter will pull this down.</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:11px;">
+          <div class="jewel" style="background:var(--led-flag); box-shadow:0 0 6px var(--led-flag);"></div>
+          <div class="lcd mono lcd-amber" style="padding:3px 8px; font-size:11.5px;">+4.2 dB</div>
+          <div style="font-size:11.5px; color:var(--plate-text-dim);">Presence/harsh (2&ndash;5kHz) &mdash; outside genre reference.</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:11px;">
+          <div class="jewel" style="background:var(--led-flag); box-shadow:0 0 6px var(--led-flag);"></div>
+          <div class="lcd mono lcd-amber" style="padding:3px 8px; font-size:11.5px;">0.04</div>
+          <div style="font-size:11.5px; color:var(--plate-text-dim);">Stereo correlation &mdash; below mono-safe floor; may cancel on mono.</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:11px;">
+          <div class="jewel" style="background:var(--led-ok); box-shadow:0 0 6px var(--led-ok);"></div>
+          <div class="lcd mono" style="padding:3px 8px; font-size:11.5px;">DR11</div>
+          <div style="font-size:11.5px; color:var(--plate-text-dim);">Dynamic range &mdash; above the DR8 floor.</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:11px;">
+          <div class="jewel" style="background:var(--led-ok); box-shadow:0 0 6px var(--led-ok);"></div>
+          <div style="font-size:11.5px; color:var(--plate-text-dim);">No clipping detected.</div>
+        </div>
+      </div>
+      <div style="margin-top:10px; display:flex; gap:14px; flex-wrap:wrap;">
+        <div style="flex:1; min-width:300px; display:flex; align-items:center; gap:10px; background:var(--metal-1); border:1px solid var(--metal-edge); border-radius:7px; padding:9px 12px;">
+          <div class="switch-track"><div class="switch-lever" style="top:3px;"></div></div>
+          <div><div style="font-weight:700; font-size:11.5px; color:var(--plate-text);">Stem separation &rarr; suggested ON</div><div class="plate-label-dim" style="text-transform:none; letter-spacing:0;">correlation 0.04 below mono-safe floor 0.0</div></div>
+        </div>
+        <div style="flex:1; min-width:300px; display:flex; align-items:center; gap:10px; background:var(--metal-1); border:1px solid var(--metal-edge); border-radius:7px; padding:9px 12px;">
+          <div class="switch-track"><div class="switch-lever" style="top:3px;"></div></div>
+          <div><div style="font-weight:700; font-size:11.5px; color:var(--plate-text);">Adaptive harshness &rarr; suggested ON</div><div class="plate-label-dim" style="text-transform:none; letter-spacing:0;">presence +4.2dB vs. 3.0dB threshold</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="groove"></div>
+
+    <!-- TRANSPORT module -->
+    <div>
+      <div class="module-title" style="margin-bottom:12px; justify-content:space-between;">
+        <div style="display:flex; align-items:center; gap:8px;"><span class="dot"></span><span class="plate-label">Transport</span></div>
+        <div class="plate-label-dim mono">Stage 4 / 6</div>
+      </div>
+      <div style="display:flex; gap:18px; margin-bottom:12px; align-items:stretch;">
+        <div style="display:flex; gap:8px; padding:8px; background:linear-gradient(180deg, var(--metal-1), var(--metal-3)); border:1px solid var(--metal-edge); border-radius:7px; box-shadow:inset 0 1px 2px rgba(255,255,255,.12), inset 0 -2px 4px rgba(0,0,0,.3);">
+          <div style="text-align:center;">
+            <svg viewBox="0 0 120 78" width="120" height="78">
+              <path d="M14 72 A46 46 0 0 1 106 72 L60 72 Z" fill="#ece3c9" stroke="var(--metal-edge)" stroke-width="1.5"/>
+              <g stroke="#3a3226" stroke-width="1.3">
+                <line x1="60" y1="38" x2="60" y2="32" transform="rotate(-50 60 72)"/>
+                <line x1="60" y1="38" x2="60" y2="32" transform="rotate(-32 60 72)"/>
+                <line x1="60" y1="38" x2="60" y2="32" transform="rotate(-14 60 72)"/>
+                <line x1="60" y1="38" x2="60" y2="32" transform="rotate(4 60 72)"/>
+                <line x1="60" y1="38" x2="60" y2="32" transform="rotate(22 60 72)"/>
+              </g>
+              <g stroke="#a83a2a" stroke-width="1.6">
+                <line x1="60" y1="38" x2="60" y2="30" transform="rotate(38 60 72)"/>
+                <line x1="60" y1="38" x2="60" y2="30" transform="rotate(50 60 72)"/>
+              </g>
+              <text x="60" y="63" text-anchor="middle" font-family="Manrope" font-size="8" font-weight="800" fill="#7a6a4a" letter-spacing="1">VU &middot; L</text>
+              <line x1="60" y1="72" x2="60" y2="24" stroke="#1c1a16" stroke-width="2" stroke-linecap="round" transform="rotate(-6 60 72)"/>
+              <circle cx="60" cy="72" r="4" fill="#1c1a16"/>
+            </svg>
+          </div>
+          <div style="text-align:center;">
+            <svg viewBox="0 0 120 78" width="120" height="78">
+              <path d="M14 72 A46 46 0 0 1 106 72 L60 72 Z" fill="#ece3c9" stroke="var(--metal-edge)" stroke-width="1.5"/>
+              <g stroke="#3a3226" stroke-width="1.3">
+                <line x1="60" y1="38" x2="60" y2="32" transform="rotate(-50 60 72)"/>
+                <line x1="60" y1="38" x2="60" y2="32" transform="rotate(-32 60 72)"/>
+                <line x1="60" y1="38" x2="60" y2="32" transform="rotate(-14 60 72)"/>
+                <line x1="60" y1="38" x2="60" y2="32" transform="rotate(4 60 72)"/>
+                <line x1="60" y1="38" x2="60" y2="32" transform="rotate(22 60 72)"/>
+              </g>
+              <g stroke="#a83a2a" stroke-width="1.6">
+                <line x1="60" y1="38" x2="60" y2="30" transform="rotate(38 60 72)"/>
+                <line x1="60" y1="38" x2="60" y2="30" transform="rotate(50 60 72)"/>
+              </g>
+              <text x="60" y="63" text-anchor="middle" font-family="Manrope" font-size="8" font-weight="800" fill="#7a6a4a" letter-spacing="1">VU &middot; R</text>
+              <line x1="60" y1="72" x2="60" y2="24" stroke="#1c1a16" stroke-width="2" stroke-linecap="round" transform="rotate(14 60 72)"/>
+              <circle cx="60" cy="72" r="4" fill="#1c1a16"/>
+            </svg>
+          </div>
+        </div>
+        <div class="lcd mono" style="flex:1; padding:12px 14px; font-size:11.5px; line-height:1.8; max-height:92px; overflow:hidden;">
+          <div style="opacity:.55;">[1] Ingest &amp; measure &mdash; 48kHz stereo, 3:42</div>
+          <div style="opacity:.55;">[2] Stem separation &mdash; htdemucs, 38s</div>
+          <div style="opacity:.55;">[3] Harshness correction &mdash; broad shelf &minus;2.0dB</div>
+          <div class="lcd-amber">[4] Stereo correction &mdash; narrowing 1:12&ndash;1:34_</div>
+        </div>
+      </div>
+      <div style="display:flex; gap:3px;">
+        <div style="flex:1; height:10px; border-radius:2px; background:var(--led-ok); box-shadow:0 0 6px var(--led-ok);"></div>
+        <div style="flex:1; height:10px; border-radius:2px; background:var(--led-ok); box-shadow:0 0 6px var(--led-ok);"></div>
+        <div style="flex:1; height:10px; border-radius:2px; background:var(--led-ok); box-shadow:0 0 6px var(--led-ok);"></div>
+        <div style="flex:1; height:10px; border-radius:2px; background:var(--led-flag); box-shadow:0 0 6px var(--led-flag);"></div>
+        <div style="flex:1; height:10px; border-radius:2px; background:var(--metal-3);"></div>
+        <div style="flex:1; height:10px; border-radius:2px; background:var(--metal-3);"></div>
+      </div>
+    </div>
+
+    <div class="groove"></div>
+
+    <!-- LOUDNESS module -->
+    <div>
+      <div class="module-title" style="margin-bottom:14px;"><span class="dot"></span><span class="plate-label">Loudness &amp; True Peak</span><span class="plate-label-dim" style="margin-left:6px;">BS.1770-4</span></div>
+      <div style="display:flex; gap:30px;">
+        <div class="knob-value">
+          <svg viewBox="0 0 72 72" width="72" height="72">
+            <g stroke="var(--plate-text-dim)" stroke-width="1.5" stroke-linecap="round">
+              <line x1="36" y1="4" x2="36" y2="9" transform="rotate(-135 36 36)"/><line x1="36" y1="4" x2="36" y2="9" transform="rotate(-108 36 36)"/><line x1="36" y1="4" x2="36" y2="9" transform="rotate(-81 36 36)"/><line x1="36" y1="4" x2="36" y2="9" transform="rotate(-54 36 36)"/><line x1="36" y1="4" x2="36" y2="9" transform="rotate(-27 36 36)"/><line x1="36" y1="4" x2="36" y2="9" transform="rotate(0 36 36)"/><line x1="36" y1="4" x2="36" y2="9" transform="rotate(27 36 36)"/><line x1="36" y1="4" x2="36" y2="9" transform="rotate(54 36 36)"/><line x1="36" y1="4" x2="36" y2="9" transform="rotate(81 36 36)"/><line x1="36" y1="4" x2="36" y2="9" transform="rotate(108 36 36)"/><line x1="36" y1="4" x2="36" y2="9" transform="rotate(135 36 36)"/>
+            </g>
+            <circle cx="36" cy="36" r="24" fill="url(#knobGrad)" stroke="var(--metal-edge)"/>
+            <line x1="36" y1="16" x2="36" y2="24" stroke="var(--accent)" stroke-width="3" stroke-linecap="round" transform="rotate(32 36 36)"/>
+            <circle cx="36" cy="36" r="3" fill="var(--metal-edge)"/>
+          </svg>
+          <div class="lcd mono" style="padding:4px 9px; font-size:12px;">-14.5</div>
+          <div class="plate-label" style="text-align:center;">Target&nbsp;(low)</div>
+        </div>
+        <div class="knob-value">
+          <svg viewBox="0 0 72 72" width="72" height="72">
+            <g stroke="var(--plate-text-dim)" stroke-width="1.5" stroke-linecap="round">
+              <line x1="36" y1="4" x2="36" y2="9" transform="rotate(-135 36 36)"/><line x1="36" y1="4" x2="36" y2="9" transform="rotate(-108 36 36)"/><line x1="36" y1="4" x2="36" y2="9" transform="rotate(-81 36 36)"/><line x1="36" y1="4" x2="36" y2="9" transform="rotate(-54 36 36)"/><line x1="36" y1="4" x2="36" y2="9" transform="rotate(-27 36 36)"/><line x1="36" y1="4" x2="36" y2="9" transform="rotate(0 36 36)"/><line x1="36" y1="4" x2="36" y2="9" transform="rotate(27 36 36)"/><line x1="36" y1="4" x2="36" y2="9" transform="rotate(54 36 36)"/><line x1="36" y1="4" x2="36" y2="9" transform="rotate(81 36 36)"/><line x1="36" y1="4" x2="36" y2="9" transform="rotate(108 36 36)"/><line x1="36" y1="4" x2="36" y2="9" transform="rotate(135 36 36)"/>
+            </g>
+            <circle cx="36" cy="36" r="24" fill="url(#knobGrad)" stroke="var(--metal-edge)"/>
+            <line x1="36" y1="16" x2="36" y2="24" stroke="var(--accent)" stroke-width="3" stroke-linecap="round" transform="rotate(54 36 36)"/>
+            <circle cx="36" cy="36" r="3" fill="var(--metal-edge)"/>
+          </svg>
+          <div class="lcd mono" style="padding:4px 9px; font-size:12px;">-13.5</div>
+          <div class="plate-label" style="text-align:center;">Ceiling</div>
+        </div>
+        <div class="knob-value">
+          <svg viewBox="0 0 72 72" width="72" height="72">
+            <g stroke="var(--plate-text-dim)" stroke-width="1.5" stroke-linecap="round">
+              <line x1="36" y1="4" x2="36" y2="9" transform="rotate(-135 36 36)"/><line x1="36" y1="4" x2="36" y2="9" transform="rotate(-108 36 36)"/><line x1="36" y1="4" x2="36" y2="9" transform="rotate(-81 36 36)"/><line x1="36" y1="4" x2="36" y2="9" transform="rotate(-54 36 36)"/><line x1="36" y1="4" x2="36" y2="9" transform="rotate(-27 36 36)"/><line x1="36" y1="4" x2="36" y2="9" transform="rotate(0 36 36)"/><line x1="36" y1="4" x2="36" y2="9" transform="rotate(27 36 36)"/><line x1="36" y1="4" x2="36" y2="9" transform="rotate(54 36 36)"/><line x1="36" y1="4" x2="36" y2="9" transform="rotate(81 36 36)"/><line x1="36" y1="4" x2="36" y2="9" transform="rotate(108 36 36)"/><line x1="36" y1="4" x2="36" y2="9" transform="rotate(135 36 36)"/>
+            </g>
+            <circle cx="36" cy="36" r="24" fill="url(#knobGrad)" stroke="var(--metal-edge)"/>
+            <line x1="36" y1="16" x2="36" y2="24" stroke="var(--accent)" stroke-width="3" stroke-linecap="round" transform="rotate(51 36 36)"/>
+            <circle cx="36" cy="36" r="3" fill="var(--metal-edge)"/>
+          </svg>
+          <div class="lcd mono" style="padding:4px 9px; font-size:12px;">-1.0</div>
+          <div class="plate-label" style="text-align:center;">True&nbsp;Peak</div>
+        </div>
+        <div style="flex:1; display:flex; align-items:center; padding-left:10px; border-left:1px solid var(--metal-edge);">
+          <p style="margin:0; font-size:11.5px; line-height:1.6; color:var(--plate-text-dim); max-width:420px;">Target is the quiet edge of the loudness band the solver aims for &mdash; &minus;14.5 matches Spotify/YouTube's own normalization target. Ceiling is the loudest the solver will ever push, no matter what. True Peak is the hardest limit in the whole chain: &minus;1.0&nbsp;dBTP is the standard streaming-safe ceiling.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="groove"></div>
+
+    <!-- DYNAMICS + FREQUENCY module row -->
+    <div style="display:flex; gap:30px;">
+      <div style="flex:1;">
+        <div class="module-title" style="margin-bottom:14px;"><span class="dot"></span><span class="plate-label">Dynamic Range</span><span class="plate-label-dim" style="margin-left:6px;">TT&nbsp;DR-meter</span></div>
+        <div style="display:flex; gap:26px;">
+          <div class="knob-value" style="width:96px;">
+            <svg viewBox="0 0 64 64" width="64" height="64">
+              <g stroke="var(--plate-text-dim)" stroke-width="1.4" stroke-linecap="round">
+                <line x1="32" y1="4" x2="32" y2="8" transform="rotate(-135 32 32)"/><line x1="32" y1="4" x2="32" y2="8" transform="rotate(-90 32 32)"/><line x1="32" y1="4" x2="32" y2="8" transform="rotate(-45 32 32)"/><line x1="32" y1="4" x2="32" y2="8" transform="rotate(0 32 32)"/><line x1="32" y1="4" x2="32" y2="8" transform="rotate(45 32 32)"/><line x1="32" y1="4" x2="32" y2="8" transform="rotate(90 32 32)"/><line x1="32" y1="4" x2="32" y2="8" transform="rotate(135 32 32)"/>
+              </g>
+              <circle cx="32" cy="32" r="21" fill="url(#knobGradSm)" stroke="var(--metal-edge)"/>
+              <line x1="32" y1="14" x2="32" y2="21" stroke="var(--accent)" stroke-width="2.6" stroke-linecap="round" transform="rotate(-27 32 32)"/>
+              <circle cx="32" cy="32" r="2.6" fill="var(--metal-edge)"/>
+            </svg>
+            <div class="lcd mono" style="padding:3px 8px; font-size:11.5px;">DR8</div>
+            <div class="plate-label" style="text-align:center;">Floor</div>
+          </div>
+          <div class="knob-value" style="width:96px;">
+            <svg viewBox="0 0 64 64" width="64" height="64">
+              <g stroke="var(--plate-text-dim)" stroke-width="1.4" stroke-linecap="round">
+                <line x1="32" y1="4" x2="32" y2="8" transform="rotate(-135 32 32)"/><line x1="32" y1="4" x2="32" y2="8" transform="rotate(-90 32 32)"/><line x1="32" y1="4" x2="32" y2="8" transform="rotate(-45 32 32)"/><line x1="32" y1="4" x2="32" y2="8" transform="rotate(0 32 32)"/><line x1="32" y1="4" x2="32" y2="8" transform="rotate(45 32 32)"/><line x1="32" y1="4" x2="32" y2="8" transform="rotate(90 32 32)"/><line x1="32" y1="4" x2="32" y2="8" transform="rotate(135 32 32)"/>
+              </g>
+              <circle cx="32" cy="32" r="21" fill="url(#knobGradSm)" stroke="var(--metal-edge)"/>
+              <line x1="32" y1="14" x2="32" y2="21" stroke="var(--accent)" stroke-width="2.6" stroke-linecap="round" transform="rotate(-54 32 32)"/>
+              <circle cx="32" cy="32" r="2.6" fill="var(--metal-edge)"/>
+            </svg>
+            <div class="lcd mono" style="padding:3px 8px; font-size:11.5px;">3.0dB</div>
+            <div class="plate-label" style="text-align:center;">Max&nbsp;reduce</div>
+          </div>
+        </div>
+      </div>
+      <div style="flex:1; border-left:1px solid var(--metal-edge); padding-left:30px;">
+        <div class="module-title" style="margin-bottom:14px;"><span class="dot"></span><span class="plate-label">Frequency Balance</span><span class="plate-label-dim" style="margin-left:6px;">124bpm&nbsp;ref</span></div>
+        <div style="display:flex; gap:26px;">
+          <div class="knob-value" style="width:96px;">
+            <svg viewBox="0 0 64 64" width="64" height="64">
+              <g stroke="var(--plate-text-dim)" stroke-width="1.4" stroke-linecap="round">
+                <line x1="32" y1="4" x2="32" y2="8" transform="rotate(-135 32 32)"/><line x1="32" y1="4" x2="32" y2="8" transform="rotate(-90 32 32)"/><line x1="32" y1="4" x2="32" y2="8" transform="rotate(-45 32 32)"/><line x1="32" y1="4" x2="32" y2="8" transform="rotate(0 32 32)"/><line x1="32" y1="4" x2="32" y2="8" transform="rotate(45 32 32)"/><line x1="32" y1="4" x2="32" y2="8" transform="rotate(90 32 32)"/><line x1="32" y1="4" x2="32" y2="8" transform="rotate(135 32 32)"/>
+              </g>
+              <circle cx="32" cy="32" r="21" fill="url(#knobGradSm)" stroke="var(--metal-edge)"/>
+              <line x1="32" y1="14" x2="32" y2="21" stroke="var(--accent)" stroke-width="2.6" stroke-linecap="round" transform="rotate(-40 32 32)"/>
+              <circle cx="32" cy="32" r="2.6" fill="var(--metal-edge)"/>
+            </svg>
+            <div class="lcd mono" style="padding:3px 8px; font-size:11.5px;">3.0dB</div>
+            <div class="plate-label" style="text-align:center;">Harshness</div>
+          </div>
+          <div class="knob-value" style="width:96px;">
+            <svg viewBox="0 0 64 64" width="64" height="64">
+              <g stroke="var(--plate-text-dim)" stroke-width="1.4" stroke-linecap="round">
+                <line x1="32" y1="4" x2="32" y2="8" transform="rotate(-135 32 32)"/><line x1="32" y1="4" x2="32" y2="8" transform="rotate(-90 32 32)"/><line x1="32" y1="4" x2="32" y2="8" transform="rotate(-45 32 32)"/><line x1="32" y1="4" x2="32" y2="8" transform="rotate(0 32 32)"/><line x1="32" y1="4" x2="32" y2="8" transform="rotate(45 32 32)"/><line x1="32" y1="4" x2="32" y2="8" transform="rotate(90 32 32)"/><line x1="32" y1="4" x2="32" y2="8" transform="rotate(135 32 32)"/>
+              </g>
+              <circle cx="32" cy="32" r="21" fill="url(#knobGradSm)" stroke="var(--metal-edge)"/>
+              <line x1="32" y1="14" x2="32" y2="21" stroke="var(--accent)" stroke-width="2.6" stroke-linecap="round" transform="rotate(-57 32 32)"/>
+              <circle cx="32" cy="32" r="2.6" fill="var(--metal-edge)"/>
+            </svg>
+            <div class="lcd mono" style="padding:3px 8px; font-size:11.5px;">3.0dB</div>
+            <div class="plate-label" style="text-align:center;">Mud</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="groove"></div>
+
+    <!-- STEREO strip -->
+    <div style="display:flex; align-items:center; justify-content:space-between;">
+      <div class="module-title"><span class="dot"></span><span class="plate-label">Stereo</span><span class="plate-label-dim" style="margin-left:6px;">correlation &middot; width &middot; mono-safety &middot; 4 controls</span></div>
+      <div style="display:flex; align-items:center; gap:8px;"><div class="jewel" style="background:var(--led-flag); box-shadow:0 0 6px var(--led-flag);"></div><span class="plate-label-dim">mono&nbsp;flagged</span></div>
+    </div>
+
+    <div class="groove"></div>
+
+    <!-- STEM SPLIT module -->
+    <div>
+      <div class="module-title" style="margin-bottom:12px; justify-content:space-between;">
+        <div style="display:flex; align-items:center; gap:8px;"><span class="dot"></span><span class="plate-label">Stem Split</span><span class="plate-label-dim" style="margin-left:6px;">AI &middot; Demucs pre-processing</span></div>
+        <div style="display:flex; align-items:center; gap:8px;"><div class="switch-track"><div class="switch-lever" style="top:3px;"></div></div><span class="plate-label">On</span></div>
+      </div>
+      <div style="display:flex; align-items:center; gap:26px;">
+        <div style="display:flex; flex-direction:column; align-items:center; gap:6px; width:110px;">
+          <svg viewBox="0 0 64 64" width="56" height="56">
+            <circle cx="32" cy="32" r="21" fill="url(#knobGradSm)" stroke="var(--metal-edge)"/>
+            <line x1="32" y1="14" x2="32" y2="21" stroke="var(--accent)" stroke-width="2.6" stroke-linecap="round" transform="rotate(-90 32 32)"/>
+            <circle cx="32" cy="32" r="2.6" fill="var(--metal-edge)"/>
+          </svg>
+          <div style="display:flex; gap:10px; font-size:8px; font-weight:700; letter-spacing:.05em; color:var(--plate-text-dim); text-transform:uppercase;">
+            <span style="color:var(--plate-text);">HTDEMUCS</span><span>FT</span><span>MDX</span><span>6S</span>
+          </div>
+          <div class="plate-label">Model</div>
+        </div>
+        <div style="flex:1; font-size:11.5px; color:var(--plate-text-dim); line-height:1.6; border-left:1px solid var(--metal-edge); padding-left:24px;">
+          Splits into vocals/drums/bass/other, mono-sums sub-bass below 90Hz, de-sizzles vocals, re-sums. Slower &mdash; 7 tunable settings incl. bass mono cutoff, vocal filters, shifts &amp; overlap.
+        </div>
+      </div>
+    </div>
+
+    <div class="groove"></div>
+
+    <!-- ADAPTIVE HARSHNESS + EXPERIMENTAL row -->
+    <div style="display:flex; gap:30px;">
+      <div style="flex:1; display:flex; align-items:center; justify-content:space-between; gap:12px;">
+        <div class="module-title"><span class="dot"></span><div><div class="plate-label">Adaptive Harshness</div><div class="plate-label-dim" style="margin-top:2px;">2&ndash;5kHz auto-correction &middot; 5 controls</div></div></div>
+        <div style="display:flex; align-items:center; gap:8px;"><div class="switch-track"><div class="switch-lever" style="top:3px;"></div></div><span class="plate-label">Default&nbsp;on</span></div>
+      </div>
+      <div style="flex:1; border-left:1px solid var(--metal-edge); padding-left:30px;">
+        <div class="module-title" style="margin-bottom:8px;"><span class="dot" style="background:var(--plate-text-dim); box-shadow:none;"></span><span class="plate-label">Experimental &middot; expansion card required</span></div>
+        <div style="display:flex; gap:18px;">
+          <div style="display:flex; align-items:center; gap:7px;"><div class="switch-track" style="opacity:.5;"><div class="switch-lever" style="bottom:3px;"></div></div><span class="plate-label-dim">Whistle</span></div>
+          <div style="display:flex; align-items:center; gap:7px;"><div class="switch-track" style="opacity:.5;"><div class="switch-lever" style="bottom:3px;"></div></div><span class="plate-label-dim">Transient</span></div>
+          <div style="display:flex; align-items:center; gap:7px;"><div class="switch-track" style="opacity:.5;"><div class="switch-lever" style="bottom:3px;"></div></div><span class="plate-label-dim">Swish</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="groove"></div>
+
+    <!-- ADVANCED access hatch -->
+    <div style="display:flex; align-items:center; justify-content:space-between; background:var(--metal-3); border:1px solid var(--metal-edge); border-radius:7px; padding:12px 16px; opacity:.75;">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="var(--plate-text-dim)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+        <span class="plate-label" style="color:var(--plate-text-dim);">Advanced access panel &mdash; 18 trim constants</span>
+      </div>
+      <div style="display:flex; gap:6px;"><div class="screw"></div><div class="screw"></div></div>
+    </div>
+
+    <div class="groove"></div>
+
+    <!-- I/O jacks -->
+    <div style="display:flex; align-items:center; gap:30px; padding-bottom:6px;">
+      <span class="plate-label-dim">I/O</span>
+      <div style="display:flex; flex-direction:column; align-items:center; gap:6px; position:relative;">
+        <svg width="34" height="34" viewBox="0 0 34 34">
+          <circle cx="17" cy="17" r="14" fill="url(#knobGradSm)" stroke="var(--metal-edge)" stroke-width="1.4"/>
+          <circle cx="17" cy="17" r="7.5" fill="var(--metal-edge)"/>
+          <circle cx="17" cy="17" r="7.5" fill="none" stroke="var(--accent)" stroke-width="2" opacity=".85"/>
+          <circle cx="17" cy="17" r="2.4" fill="#050505"/>
+        </svg>
+        <span class="plate-label-dim">In</span>
+        <svg width="60" height="120" viewBox="0 0 60 120" style="position:absolute; top:22px; left:-13px; overflow:visible; pointer-events:none;">
+          <path d="M17 2 C 17 34, 46 36, 43 66 S 18 104, 28 118" fill="none" stroke="#141517" stroke-width="6" stroke-linecap="round"/>
+          <path d="M17 2 C 17 34, 46 36, 43 66 S 18 104, 28 118" fill="none" stroke="#3a3d42" stroke-width="1.6" stroke-linecap="round" opacity=".55"/>
+        </svg>
+      </div>
+      <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
+        <svg width="34" height="34" viewBox="0 0 34 34">
+          <circle cx="17" cy="17" r="14" fill="url(#knobGradSm)" stroke="var(--metal-edge)" stroke-width="1.4"/>
+          <circle cx="17" cy="17" r="7.5" fill="var(--metal-edge)"/>
+          <circle cx="17" cy="17" r="2.4" fill="#050505"/>
+        </svg>
+        <span class="plate-label-dim">Out</span>
+      </div>
+      <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
+        <svg width="34" height="34" viewBox="0 0 34 34">
+          <circle cx="17" cy="17" r="14" fill="url(#knobGradSm)" stroke="var(--metal-edge)" stroke-width="1.4"/>
+          <circle cx="17" cy="17" r="7.5" fill="var(--metal-edge)"/>
+          <circle cx="17" cy="17" r="2.4" fill="#050505"/>
+        </svg>
+        <span class="plate-label-dim">SC</span>
+      </div>
+      <div style="flex:1; text-align:right; font-size:10.5px; color:var(--plate-text-dim);">balanced &frac14;&Prime; &middot; patched to monitor chain</div>
+    </div>
+
+  </div>
+
+  <!-- right rack ear -->
+  <div style="width:34px; flex:none; background:linear-gradient(270deg, var(--metal-3), var(--metal-2)); border-left:1px solid var(--metal-edge); display:flex; flex-direction:column; align-items:center; justify-content:space-between; padding:26px 0;">
+    <div class="screw"></div><div class="screw"></div><div class="screw"></div><div class="screw"></div>
+  </div>
+
+</div>
+</div>
+
+</x-dc>
+<script data-dc-script data-props='{"dark":{"editor":"boolean","default":true,"section":"Finish"}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const dark = this.props.dark ?? true;
+    return { finishClass: dark ? 'finish-dark' : 'finish-light' };
+  }
+}
+</script>
+</body>
+</html>

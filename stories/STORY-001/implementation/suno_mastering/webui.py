@@ -322,6 +322,9 @@ def _coerce(raw: str, tp) -> object:
     return str(raw)  # str, or unrecognised -- pass through as text
 
 
+_KNOB_TICK_ANGLES = (-135, -108, -81, -54, -27, 0, 27, 54, 81, 108, 135)
+
+
 def _widget_html(name: str, tp, value, *, help_text: str | None = None) -> str:
     tp, optional = _unwrap_optional(tp)
     label = name.rsplit(".", 1)[-1].replace("_", " ")
@@ -334,59 +337,507 @@ def _widget_html(name: str, tp, value, *, help_text: str | None = None) -> str:
             f'<option value="{o}"{" selected" if o == value else ""}>{o}</option>'
             for o in _SELECT_OPTIONS[name]
         )
-        control = f'<select name="{name}">{opts}</select>'
+        control = f'<select name="{name}" class="lcd-select">{opts}</select>'
     elif tp is bool:
         checked = "checked" if value else ""
         control = (
+            f'<label class="switch">'
             f'<input type="hidden" name="{name}" value="false">'
             f'<input type="checkbox" name="{name}" value="true" {checked}>'
+            f'<span class="switch-track"><span class="switch-lever"></span></span>'
+            f'</label>'
         )
     elif name in _SLIDER_RANGES and tp in (int, float):
         lo, hi, step = _SLIDER_RANGES[name]
         val = value if value is not None else lo
-        # The number box carries no `name` of its own -- only the range
-        # input submits with the form. The two stay in sync purely via
-        # sibling references in oninput, so the markup order here
-        # (range, then number, then reset) must not change.
+        step_str = str(step)
+        decimals = len(step_str.split(".", 1)[1]) if "." in step_str else 0
+        ticks = "".join(
+            f'<line x1="36" y1="4" x2="36" y2="9" transform="rotate({a} 36 36)"/>'
+            for a in _KNOB_TICK_ANGLES
+        )
+        # The knob SVG is a purely visual/drag proxy -- the number input is
+        # the one real form field (carries `name`); dragging or scrolling on
+        # the knob just writes to it and dispatches 'input', which is what
+        # keeps the needle in sync (see the knob-drag script in _MAIN_SCRIPT).
         control = (
-            f'<div class="slider-row">'
-            f'<input type="range" class="slider" name="{name}" min="{lo}" max="{hi}" '
-            f'step="{step}" value="{val}" '
-            f'oninput="this.nextElementSibling.value=this.value">'
-            f'<input type="number" class="slider-num" min="{lo}" max="{hi}" step="{step}" '
-            f'value="{val}" '
-            f'oninput="this.previousElementSibling.value=this.value">'
+            f'<div class="knob-wrap">'
+            f'<svg class="knob" data-min="{lo}" data-max="{hi}" data-step="{step}" '
+            f'viewBox="0 0 72 72" width="46" height="46">'
+            f'<g class="knob-ticks">{ticks}</g>'
+            f'<circle class="knob-face" cx="36" cy="36" r="24"/>'
+            f'<line class="knob-needle" x1="36" y1="16" x2="36" y2="24"/>'
+            f'<circle class="knob-hub" cx="36" cy="36" r="3"/>'
+            f'</svg>'
+            f'<div class="knob-readout">'
+            f'<input type="number" class="lcd-input" name="{name}" min="{lo}" max="{hi}" '
+            f'step="{step}" value="{val}" data-decimals="{decimals}">'
             f'<button type="button" class="reset-btn" title="Reset to default ({val})" '
-            f'onclick="const r=this.previousElementSibling.previousElementSibling; '
-            f'r.value={val}; r.nextElementSibling.value={val};">&#8635;</button>'
+            f'onclick="this.previousElementSibling.value={val}; '
+            f'this.previousElementSibling.dispatchEvent(new Event(\'input\'));">&#8635;</button>'
+            f'</div>'
             f'</div>'
         )
     elif tp in (int, float) or _is_tuple_type(tp):
         step = "1" if tp is int else "any"
         step_attr = f'step="{step}"' if tp in (int, float) else ""
         control = (
-            f'<input type="text" {step_attr} name="{name}" '
+            f'<input type="text" class="lcd-input" {step_attr} name="{name}" '
             f'value="{_fmt_value(value)}">'
         )
     else:
-        control = f'<input type="text" name="{name}" value="{_fmt_value(value)}">'
+        control = f'<input type="text" class="lcd-input" name="{name}" value="{_fmt_value(value)}">'
 
     return (
-        f'<div class="field"><label for="{name}">{label}</label>'
-        f'{control}</div>{desc}'
+        f'<div class="field-row"><div class="field-head">'
+        f'<div class="field-name">{label}</div>{control}</div>{desc}</div>'
     )
 
 
-def _render_fieldset(title: str, description: str, body_html: str, *, collapsed: bool = False) -> str:
+def _render_fieldset(
+    title: str, description: str, body_html: str, *, collapsed: bool = False, enabled: bool | None = None
+) -> str:
+    dot_class = "module-dot"
+    if enabled is True:
+        dot_class += " module-dot-on"
+    dot = f"<span class='{dot_class}'></span>"
+    desc_html = f"<p class='module-desc'>{description}</p>" if description else ""
     if collapsed:
         return (
-            f"<details class='section'><summary>{title}</summary>"
-            f"<p class='desc'>{description}</p>{body_html}</details>"
+            f"<details class='section module'><summary>"
+            f"{dot}<span class='module-title'>{title}</span>"
+            f"</summary>{desc_html}{body_html}</details>"
         )
     return (
-        f"<fieldset class='section'><legend>{title}</legend>"
-        f"<p class='desc'>{description}</p>{body_html}</fieldset>"
+        f"<div class='section module'>"
+        f"<div class='module-head'>{dot}<span class='module-title'>{title}</span></div>"
+        f"{desc_html}{body_html}</div>"
     )
+
+
+def _vu_meter_svg(label: str, needle_deg: int) -> str:
+    """Purely decorative -- a static analog-meter face, not bound to any
+    real audio level (the pipeline reports final numbers, not a live
+    signal). Gives the transport module a hardware feel without claiming
+    to measure anything."""
+    return (
+        f'<svg viewBox="0 0 120 78" width="94" height="62">'
+        f'<path d="M14 72 A46 46 0 0 1 106 72 L60 72 Z" fill="#ece3c9" stroke="var(--metal-edge)" stroke-width="1.5"/>'
+        f'<g stroke="#3a3226" stroke-width="1.3">'
+        f'<line x1="60" y1="38" x2="60" y2="32" transform="rotate(-50 60 72)"/>'
+        f'<line x1="60" y1="38" x2="60" y2="32" transform="rotate(-25 60 72)"/>'
+        f'<line x1="60" y1="38" x2="60" y2="32" transform="rotate(0 60 72)"/>'
+        f'<line x1="60" y1="38" x2="60" y2="32" transform="rotate(25 60 72)"/>'
+        f'</g>'
+        f'<g stroke="#a83a2a" stroke-width="1.6"><line x1="60" y1="38" x2="60" y2="30" transform="rotate(50 60 72)"/></g>'
+        f'<text x="60" y="63" text-anchor="middle" font-size="8" font-weight="800" fill="#7a6a4a" letter-spacing="1">VU &middot; {label}</text>'
+        f'<line x1="60" y1="72" x2="60" y2="24" stroke="#1c1a16" stroke-width="2" stroke-linecap="round" transform="rotate({needle_deg} 60 72)"/>'
+        f'<circle cx="60" cy="72" r="4" fill="#1c1a16"/>'
+        f'</svg>'
+    )
+
+
+def _jack_svg() -> str:
+    def jack(text: str) -> str:
+        return (
+            f'<div class="jack"><svg width="30" height="30" viewBox="0 0 34 34">'
+            f'<circle cx="17" cy="17" r="14" fill="url(#sm-knob-grad)" stroke="var(--metal-edge)" stroke-width="1.4"/>'
+            f'<circle cx="17" cy="17" r="7.5" fill="var(--metal-edge)"/>'
+            f'<circle cx="17" cy="17" r="2.4" fill="#050505"/>'
+            f'</svg><span class="plate-label-dim">{text}</span></div>'
+        )
+    return jack("In") + jack("Out") + jack("SC")
+
+
+_KNOB_GRADIENT_DEFS = (
+    '<svg width="0" height="0" style="position:absolute;">'
+    '<defs><radialGradient id="sm-knob-grad" cx="35%" cy="28%" r="78%">'
+    '<stop offset="0%" style="stop-color:var(--knob-face-1)"/>'
+    '<stop offset="65%" style="stop-color:var(--knob-face-2)"/>'
+    '<stop offset="100%" style="stop-color:var(--metal-edge)"/>'
+    '</radialGradient></defs></svg>'
+)
+
+_HEAD_THEME_SCRIPT = """<script>
+(function() {
+  try {
+    var saved = localStorage.getItem('sunoMasteringFinish');
+    if (saved === 'light') document.documentElement.setAttribute('data-finish', 'light');
+  } catch (e) {}
+})();
+</script>"""
+
+# Hardware-console skin: brushed-metal chassis, rack ears + screws, rotary
+# knobs, physical toggle switches, LCD readouts. Two "finishes" (dark
+# anodized / light brushed aluminum) live as CSS custom properties on
+# :root, switched at runtime via the [data-finish] attribute -- see
+# toggleFinish() in _MAIN_SCRIPT. Plain (non-f) string: no brace-doubling
+# needed since Python never interpolates into this.
+_STYLE_BLOCK = """
+:root {
+  --room: radial-gradient(120% 90% at 50% -10%, #2a2620 0%, #17140f 55%, #100e0b 100%);
+  --metal-1: #4a4e54; --metal-2: #2d2f34; --metal-3: #1a1c1f; --metal-edge: #0c0d0e;
+  --plate-text: rgba(255,255,255,.58); --plate-text-dim: rgba(255,255,255,.24);
+  --lcd-bg: #060a07; --lcd-fg: #7cffa0; --page-fg: #e9e9ea;
+  --knob-face-1: #7a7f87; --knob-face-2: #34373c;
+  --accent: #e0793f; --led-ok: #59d17f; --led-flag: #e8ab4c; --led-info: #6fb6e0;
+  --groove-lo: rgba(0,0,0,.55); --groove-hi: rgba(255,255,255,.05);
+  --screw-1: #9498a0; --screw-2: #232529;
+}
+:root[data-finish="light"] {
+  --room: radial-gradient(120% 90% at 50% -10%, #eceff2 0%, #dfe2e6 55%, #d3d6da 100%);
+  --metal-1: #f1f2f4; --metal-2: #d3d5d9; --metal-3: #b6b9bd; --metal-edge: #9a9da1;
+  --plate-text: rgba(24,26,30,.62); --plate-text-dim: rgba(24,26,30,.28);
+  --lcd-bg: #050805; --lcd-fg: #2c8a52; --page-fg: #1c1d1f;
+  --knob-face-1: #f6f7f8; --knob-face-2: #c3c5c9;
+  --accent: #c85f2b; --led-ok: #2f7d4b; --led-flag: #a06a1e; --led-info: #2f6a8c;
+  --groove-lo: rgba(0,0,0,.28); --groove-hi: rgba(255,255,255,.5);
+  --screw-1: #fbfbfc; --screw-2: #9a9da1;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--room); color: var(--page-fg); min-height: 100vh; }
+a { color: var(--accent); }
+h1 { margin: 0; font: inherit; }
+.mono, .lcd-input, .lcd-select { font-family: Consolas, 'SFMono-Regular', Menlo, monospace; }
+
+.page-wrap { padding: 20px 14px 60px; display: flex; justify-content: center; }
+.chassis { width: 100%; max-width: 1180px; background: linear-gradient(160deg, var(--metal-1), var(--metal-2) 40%, var(--metal-3)); border-radius: 10px; box-shadow: 0 24px 50px rgba(0,0,0,.45); display: flex; }
+.rack-ear { width: 22px; flex: none; background: linear-gradient(90deg, var(--metal-3), var(--metal-2)); display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 20px 0; border-right: 1px solid var(--metal-edge); }
+.rack-ear.right { background: linear-gradient(270deg, var(--metal-3), var(--metal-2)); border-right: none; border-left: 1px solid var(--metal-edge); }
+.screw { width: 8px; height: 8px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, var(--screw-1), var(--screw-2) 75%); position: relative; box-shadow: 0 1px 1px rgba(0,0,0,.5); }
+.screw::after { content: ""; position: absolute; top: 50%; left: 1px; right: 1px; height: 1px; background: rgba(0,0,0,.5); transform: translateY(-50%) rotate(22deg); }
+.chassis-body { flex: 1; min-width: 0; padding: 20px 24px 30px; }
+.groove { height: 3px; background: linear-gradient(180deg, var(--groove-lo), var(--groove-hi)); border-radius: 2px; margin: 14px 0; }
+
+.brand-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.brand-id { display: flex; align-items: center; gap: 12px; }
+.brand-name { font-weight: 800; font-size: 15px; letter-spacing: .06em; color: var(--plate-text); }
+.brand-sub { font-size: 10px; color: var(--plate-text-dim); letter-spacing: .07em; text-transform: uppercase; margin-top: 2px; }
+.header-controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.finish-toggle { width: 30px; height: 30px; flex: none; border-radius: 6px; border: 1px solid var(--metal-edge); background: linear-gradient(180deg, var(--metal-1), var(--metal-2)); color: var(--plate-text); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.finish-toggle:hover { filter: brightness(1.08); }
+
+.plate-label { font-size: 9.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--plate-text); }
+.plate-label-dim { font-size: 9px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--plate-text-dim); }
+
+.token-box { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.token-box .lcd-input { width: 170px; }
+.token-status { font-size: 10.5px; }
+.token-set { color: var(--led-ok); }
+.token-unset { color: var(--led-flag); }
+.token-msg { font-size: 10.5px; color: var(--plate-text-dim); }
+.token-help { font-size: 10.5px; color: var(--plate-text-dim); line-height: 1.6; margin: 8px 0 0; max-width: 680px; }
+.token-help code { color: var(--plate-text); }
+
+.lcd-input, .lcd-select {
+  background: var(--lcd-bg); color: var(--lcd-fg); text-shadow: 0 0 5px currentColor;
+  border: 1px solid var(--metal-edge); border-radius: 4px; padding: 7px 10px; font-size: 12.5px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.6);
+}
+.lcd-input::placeholder { color: rgba(124,255,160,.35); }
+.lcd-input:-webkit-autofill, .lcd-input:-webkit-autofill:hover, .lcd-input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px var(--lcd-bg) inset;
+  -webkit-text-fill-color: var(--lcd-fg);
+  caret-color: var(--lcd-fg);
+}
+.lcd-select { appearance: none; -webkit-appearance: none; padding-right: 26px; cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: right 12px center, right 8px center; background-size: 5px 5px, 5px 5px; background-repeat: no-repeat;
+}
+
+button { font-family: inherit; }
+.btn-plate {
+  font-weight: 700; font-size: 12px; letter-spacing: .03em; text-transform: uppercase;
+  color: var(--plate-text); background: linear-gradient(180deg, var(--metal-1), var(--metal-2));
+  border: 1px solid var(--metal-edge); border-radius: 6px; box-shadow: 0 2px 0 var(--metal-edge), inset 0 1px 0 rgba(255,255,255,.15);
+  cursor: pointer; padding: 9px 16px;
+}
+.btn-plate:hover { filter: brightness(1.06); }
+.btn-plate:disabled { opacity: .5; cursor: default; filter: none; }
+.btn-master {
+  font-weight: 800; font-size: 13px; letter-spacing: .04em; text-transform: uppercase; color: #fff;
+  background: linear-gradient(180deg, #e0793f, #b85a2c); border: 1px solid var(--metal-edge); border-radius: 6px;
+  box-shadow: 0 2px 0 #7a3f1e, inset 0 1px 0 rgba(255,255,255,.22); cursor: pointer; padding: 12px 26px;
+}
+.btn-master:hover { filter: brightness(1.05); }
+.btn-master:disabled { opacity: .5; cursor: default; filter: none; }
+
+.error { background: rgba(232,171,76,.15); border: 1px solid var(--led-flag); color: var(--led-flag); padding: 8px 12px; border-radius: 5px; margin-bottom: 10px; font-size: 12px; }
+
+.source-module { position: sticky; top: 8px; z-index: 20; background: linear-gradient(160deg, var(--metal-1), var(--metal-2)); border: 1px solid var(--metal-edge); border-radius: 8px; padding: 16px 18px; box-shadow: 0 10px 24px rgba(0,0,0,.3); margin: 14px 0; }
+.source-row { display: flex; gap: 14px; align-items: flex-end; margin-bottom: 12px; }
+.source-row:last-child { margin-bottom: 0; }
+.source-field { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.source-field .lcd-input { width: 100%; }
+.source-actions { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+.diagnose-status { font-size: 11px; color: var(--plate-text-dim); margin-left: 8px; }
+
+.switch { position: relative; display: inline-flex; align-items: center; cursor: pointer; width: 34px; height: 19px; }
+.switch input[type=checkbox] { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.switch-track { width: 34px; height: 19px; border-radius: 4px; background: linear-gradient(180deg, var(--metal-2), var(--metal-3)); border: 1px solid var(--metal-edge); position: relative; box-shadow: inset 0 1px 3px rgba(0,0,0,.6); display: block; }
+.switch-lever { position: absolute; left: 3px; right: 3px; bottom: 3px; height: 8px; border-radius: 2px; background: linear-gradient(180deg, var(--metal-1), var(--knob-face-2)); box-shadow: 0 1px 0 rgba(255,255,255,.15); }
+.switch input:checked ~ .switch-track { border-color: var(--led-ok); box-shadow: inset 0 1px 3px rgba(0,0,0,.6), 0 0 6px rgba(89,209,127,.5); }
+.switch input:checked ~ .switch-track .switch-lever { bottom: auto; top: 3px; background: linear-gradient(180deg, #cdeed9, var(--led-ok)); }
+.switch input:focus-visible ~ .switch-track { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.knob-wrap { display: flex; align-items: center; gap: 8px; }
+.knob { cursor: ns-resize; touch-action: none; flex: none; }
+.knob-ticks line { stroke: var(--plate-text-dim); stroke-width: 1.5; stroke-linecap: round; }
+.knob-face { fill: url(#sm-knob-grad); stroke: var(--metal-edge); }
+.knob-needle { stroke: var(--accent); stroke-width: 3; stroke-linecap: round; }
+.knob-hub { fill: var(--metal-edge); }
+.knob-readout { display: flex; align-items: center; gap: 6px; }
+.knob-readout .lcd-input { width: 62px; text-align: center; padding: 6px 4px; }
+.reset-btn { flex: none; width: 24px; height: 24px; border-radius: 5px; background: var(--metal-1); border: 1px solid var(--metal-edge); color: var(--plate-text-dim); cursor: pointer; font-size: 12px; }
+.reset-btn:hover { color: var(--plate-text); }
+
+.field-row { padding: 11px 0; border-bottom: 1px solid var(--groove-lo); }
+.field-row:last-child { border-bottom: none; }
+.field-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.field-name { font-weight: 700; font-size: 12.5px; color: var(--plate-text); }
+.field-desc { margin: 6px 0 0; font-size: 11px; line-height: 1.55; color: var(--plate-text-dim); max-width: 640px; }
+
+.module { margin: 14px 0; }
+.module-head, details.module summary { display: flex; align-items: center; gap: 9px; padding: 4px 0 10px; }
+details.module summary { cursor: pointer; list-style: none; }
+details.module summary::-webkit-details-marker { display: none; }
+.module-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--plate-text-dim); flex: none; }
+.module-dot-on { background: var(--led-ok); box-shadow: 0 0 5px var(--led-ok); }
+.module-title { font-weight: 800; font-size: 12.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--plate-text); }
+.module-desc { margin: 0 0 10px; font-size: 10.5px; color: var(--plate-text-dim); }
+
+.diag { display: flex; flex-direction: column; gap: 14px; background: var(--metal-3); border: 1px solid var(--metal-edge); border-radius: 8px; padding: 14px 16px; margin: 14px 0; box-shadow: inset 0 2px 6px rgba(0,0,0,.35); }
+.diaggroup h4 { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--plate-text-dim); margin: 0 0 6px; }
+.diagrow { display: flex; align-items: baseline; gap: 9px; font-size: 11.5px; padding: 3px 0; color: var(--plate-text); }
+.diagrow .badge { flex: none; font-size: 9.5px; font-weight: 800; letter-spacing: .05em; padding: 2px 7px; border-radius: 3px; text-transform: uppercase; }
+.diagrow.ok .badge { background: rgba(89,209,127,.16); color: var(--led-ok); }
+.diagrow.flag .badge { background: rgba(232,171,76,.18); color: var(--led-flag); }
+.diagrow.info .badge { background: rgba(111,182,224,.16); color: var(--led-info); }
+.suggestion { background: var(--metal-2); border: 1px solid var(--metal-edge); border-radius: 6px; padding: 10px 12px; }
+.suggestion .sugtitle { font-weight: 700; font-size: 12px; color: var(--plate-text); }
+.diagwhat, .diagwhy { display: block; margin-top: 4px; font-size: 10.5px; color: var(--plate-text-dim); }
+.diagwhy { font-style: italic; }
+.diag-applied { outline: 2px solid var(--led-ok); outline-offset: 2px; border-radius: 3px; }
+
+.progress-wrap { margin: 14px 0; }
+.progress-wrap.hidden { display: none; }
+.progress-inner { display: flex; gap: 14px; align-items: stretch; margin-bottom: 10px; }
+.vu-bank { display: flex; gap: 6px; padding: 8px; flex: none; background: linear-gradient(180deg, var(--metal-1), var(--metal-3)); border: 1px solid var(--metal-edge); border-radius: 7px; }
+.progress-log { flex: 1; min-width: 0; background: var(--lcd-bg); color: var(--lcd-fg); text-shadow: 0 0 4px currentColor; border: 1px solid var(--metal-edge); border-radius: 6px; padding: 10px 12px; font-size: 11px; line-height: 1.7; white-space: pre-wrap; max-height: 150px; overflow-y: auto; box-shadow: inset 0 2px 5px rgba(0,0,0,.6); margin: 0; }
+.progress-bar { height: 10px; border-radius: 2px; overflow: hidden; background: var(--metal-3); }
+.progress-fill { height: 100%; width: 0%; transition: width .3s ease; background: repeating-linear-gradient(90deg, var(--led-ok) 0 12px, rgba(0,0,0,.35) 12px 14px); box-shadow: 0 0 8px rgba(89,209,127,.5); }
+.progress-label { font-size: 10.5px; color: var(--plate-text-dim); margin-top: 6px; }
+.progress-result { margin-top: 8px; font-size: 12px; }
+.progress-result.ok { color: var(--led-ok); }
+.progress-result.err { color: var(--led-flag); }
+
+.io-row { display: flex; align-items: center; gap: 20px; padding: 12px 0 2px; margin-top: 8px; border-top: 1px solid var(--groove-lo); flex-wrap: wrap; }
+.jack { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.io-note { flex: 1; text-align: right; font-size: 10px; color: var(--plate-text-dim); min-width: 160px; }
+"""
+
+
+_MAIN_SCRIPT = """
+// A local http.server connection can occasionally be reset by AV/firewall
+// software inspecting a freshly-opened port, especially on the very first
+// request or two after the page loads -- that surfaces to fetch() as a
+// generic network-level TypeError, not an HTTP error status. One silent
+// retry after a short pause covers that without masking a real failure
+// (a second consecutive failure still surfaces to the user as normal).
+async function fetchWithRetry(url, opts, retries) {
+  if (retries === undefined) retries = 1;
+  try {
+    return await fetch(url, opts);
+  } catch (err) {
+    if (retries > 0) {
+      await new Promise(function(r) { setTimeout(r, 400); });
+      return fetchWithRetry(url, opts, retries - 1);
+    }
+    throw err;
+  }
+}
+
+async function browse() {
+  const res = await fetchWithRetry('/browse');
+  const data = await res.json();
+  if (data.path) document.getElementById('input_path').value = data.path;
+}
+
+async function saveToken() {
+  const val = document.getElementById('hf_token').value;
+  const msg = document.getElementById('tokenMsg');
+  if (!val.trim()) { msg.textContent = 'Enter a token first.'; return; }
+  msg.textContent = 'Saving...';
+  try {
+    const res = await fetchWithRetry('/token', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: 'token=' + encodeURIComponent(val.trim())
+    });
+    const data = await res.json();
+    msg.textContent = data.ok ? 'Saved.' : ('Failed: ' + data.error);
+  } catch (err) {
+    msg.textContent = 'Failed: ' + err;
+  }
+}
+
+async function diagnose() {
+  const path = document.getElementById('input_path').value.trim();
+  const statusEl = document.getElementById('diagnoseStatus');
+  const panel = document.getElementById('diagnosePanel');
+  if (!path) { statusEl.textContent = 'Enter or load an input file first.'; return; }
+  statusEl.textContent = 'Analysing (reads the file but does not master it)...';
+  panel.innerHTML = '';
+  try {
+    const res = await fetchWithRetry('/diagnose', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: 'input_path=' + encodeURIComponent(path)
+    });
+    const data = await res.json();
+    if (!data.ok) { statusEl.textContent = 'Diagnose failed: ' + data.error; return; }
+    statusEl.textContent = '';
+    panel.innerHTML = data.html;
+    for (const [field, value] of Object.entries(data.checks || {})) {
+      const el = document.querySelector('input[type=checkbox][name="' + field + '"]');
+      if (el) {
+        el.checked = !!value;
+        el.classList.add('diag-applied');
+        const details = el.closest('details.section');
+        if (details) details.open = true;
+      }
+    }
+  } catch (err) {
+    statusEl.textContent = 'Diagnose failed: ' + err;
+  }
+}
+
+let polling = false;
+
+async function pollStatus() {
+  let data;
+  try {
+    const res = await fetchWithRetry('/status.json');
+    data = await res.json();
+  } catch (err) {
+    // A dropped poll doesn't mean the job died -- it keeps running
+    // server-side regardless. Just try again on the next tick rather
+    // than freezing the progress bar on one bad request.
+    if (polling) setTimeout(pollStatus, 1000);
+    return;
+  }
+  const total = data.total || 6;
+  const stage = data.stage || 0;
+  const pct = Math.max(0, Math.min(100, Math.round((stage / total) * 100)));
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressLabel').textContent = 'Stage ' + stage + ' of ' + total + ' (' + pct + '%)';
+  document.getElementById('progressLog').textContent = data.log.join('\\n');
+  document.getElementById('progressLog').scrollTop = document.getElementById('progressLog').scrollHeight;
+  if (data.done) {
+    polling = false;
+    const resultEl = document.getElementById('progressResult');
+    document.getElementById('runBtn').disabled = false;
+    if (data.error) {
+      resultEl.className = 'progress-result err';
+      resultEl.textContent = 'FAILED: ' + data.error;
+    } else {
+      resultEl.className = 'progress-result ok';
+      resultEl.textContent = data.summary;
+      document.getElementById('progressFill').style.width = '100%';
+    }
+    return;
+  }
+  if (polling) setTimeout(pollStatus, 1000);
+}
+
+document.getElementById('masterForm').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const runBtn = document.getElementById('runBtn');
+  const progressWrap = document.getElementById('progressWrap');
+  const resultEl = document.getElementById('progressResult');
+  const params = new URLSearchParams(new FormData(this));
+  runBtn.disabled = true;
+  resultEl.className = 'progress-result';
+  resultEl.textContent = '';
+  document.getElementById('progressLog').textContent = '';
+  document.getElementById('progressFill').style.width = '0%';
+  document.getElementById('progressLabel').textContent = 'Starting...';
+  progressWrap.classList.remove('hidden');
+  try {
+    const res = await fetchWithRetry('/run', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: params
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      runBtn.disabled = false;
+      resultEl.className = 'progress-result err';
+      resultEl.textContent = data.error;
+      return;
+    }
+    polling = true;
+    pollStatus();
+  } catch (err) {
+    runBtn.disabled = false;
+    resultEl.className = 'progress-result err';
+    resultEl.textContent = String(err);
+  }
+});
+
+function toggleFinish() {
+  const cur = document.documentElement.getAttribute('data-finish') === 'light' ? 'light' : 'dark';
+  const next = cur === 'light' ? 'dark' : 'light';
+  document.documentElement.setAttribute('data-finish', next);
+  try { localStorage.setItem('sunoMasteringFinish', next); } catch (e) {}
+}
+
+(function() {
+  function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
+  function angleFor(f) { return -135 + f * 270; }
+  function updateKnob(svg, val) {
+    const lo = parseFloat(svg.dataset.min), hi = parseFloat(svg.dataset.max);
+    const f = clamp((val - lo) / ((hi - lo) || 1), 0, 1);
+    const needle = svg.querySelector('.knob-needle');
+    if (needle) needle.setAttribute('transform', 'rotate(' + angleFor(f) + ' 36 36)');
+  }
+  document.querySelectorAll('.knob-wrap').forEach(function(wrap) {
+    const svg = wrap.querySelector('.knob');
+    const input = wrap.querySelector('input.lcd-input');
+    if (!svg || !input) return;
+    const lo = parseFloat(svg.dataset.min), hi = parseFloat(svg.dataset.max);
+    const step = parseFloat(svg.dataset.step) || 1;
+    const decimals = parseInt(input.dataset.decimals || '0', 10);
+    updateKnob(svg, parseFloat(input.value));
+    input.addEventListener('input', function() { updateKnob(svg, parseFloat(input.value) || lo); });
+    let dragging = false, startY = 0, startVal = 0;
+    svg.addEventListener('mousedown', function(e) {
+      dragging = true; startY = e.clientY; startVal = parseFloat(input.value) || lo;
+      e.preventDefault();
+    });
+    window.addEventListener('mousemove', function(e) {
+      if (!dragging) return;
+      const dy = startY - e.clientY;
+      const sensitivity = (hi - lo) / 150;
+      let v = clamp(startVal + dy * sensitivity, lo, hi);
+      v = Math.round((v - lo) / step) * step + lo;
+      input.value = v.toFixed(decimals);
+      updateKnob(svg, v);
+      input.dispatchEvent(new Event('change'));
+    });
+    window.addEventListener('mouseup', function() { dragging = false; });
+    svg.addEventListener('wheel', function(e) {
+      e.preventDefault();
+      let v = clamp((parseFloat(input.value) || lo) + (e.deltaY < 0 ? step : -step), lo, hi);
+      v = Math.round((v - lo) / step) * step + lo;
+      input.value = v.toFixed(decimals);
+      updateKnob(svg, v);
+      input.dispatchEvent(new Event('change'));
+    }, { passive: false });
+  });
+})();
+"""
 
 
 def build_form_html(config: MasteringConfig, *, error: str | None = None, hf_token: str = "") -> str:
@@ -414,7 +865,9 @@ def build_form_html(config: MasteringConfig, *, error: str | None = None, hf_tok
                 for nf in dataclasses.fields(tp)
             )
             title, desc = _SECTION_INFO.get(f.name, (f.name.replace("_", " "), ""))
-            nested_sections.append(_render_fieldset(title, desc, body))
+            nested_sections.append(
+                _render_fieldset(title, desc, body, collapsed=True, enabled=getattr(nested, "enabled", None))
+            )
         elif f.name not in grouped_names:
             advanced_scalar_body.append(_widget_html(f.name, tp, getattr(config, f.name)))
 
@@ -427,236 +880,106 @@ def build_form_html(config: MasteringConfig, *, error: str | None = None, hf_tok
 
     error_html = f'<div class="error">{error}</div>' if error else ""
     token_status_html = (
-        f'<span class="token-status token-set">A token is already saved &mdash; leave blank to keep it.</span>'
+        '<span class="token-status token-set">Saved &mdash; leave blank to keep it.</span>'
         if hf_token else
         '<span class="token-status token-unset">No token saved yet.</span>'
     )
 
     return f"""<!doctype html>
 <html><head><meta charset="utf-8"><title>Suno Mastering</title>
-<style>
-body {{ font-family: system-ui, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; }}
-h1 {{ font-size: 1.4rem; }}
-fieldset.section, details.section {{ margin-bottom: 1rem; border: 1px solid #ccc; border-radius: 6px; padding: 0.75rem 1rem; }}
-legend, summary {{ font-weight: 600; cursor: pointer; }}
-.desc {{ color: #666; font-size: 0.85rem; margin: 0.2rem 0 0.6rem; }}
-.field {{ display: flex; align-items: center; gap: 0.5rem; margin: 0.35rem 0 0.1rem; }}
-.field label {{ flex: 0 0 200px; font-size: 0.9rem; }}
-.field input[type=text], .field input[type=password], .field select {{ flex: 1; padding: 0.2rem 0.4rem; }}
-.field-desc {{
-  margin: 0 0 0.7rem 208px; color: #666; font-size: 0.78rem; line-height: 1.4; max-width: 46rem;
-}}
-.slider-row {{ display: flex; align-items: center; gap: 0.5rem; flex: 1; }}
-.slider-row .slider {{ flex: 1; accent-color: #2a7; }}
-.slider-row .slider-num {{ flex: none; width: 5.5rem; padding: 0.2rem 0.35rem; }}
-.slider-row .reset-btn {{
-  flex: none; border: 1px solid #ccc; background: #fff; border-radius: 4px;
-  padding: 0.1rem 0.45rem; font-size: 0.9rem; line-height: 1.4; cursor: pointer; color: #667;
-}}
-.slider-row .reset-btn:hover {{ background: #eef2f6; border-color: #99a; }}
-.run-bar {{ position: sticky; top: 0; background: #fff; padding: 0.75rem 0; border-bottom: 2px solid #333; z-index: 10; }}
-.run-bar input[type=text] {{ width: 60%; padding: 0.4rem; }}
-button {{ padding: 0.5rem 1.2rem; font-size: 1rem; cursor: pointer; }}
-button:disabled {{ opacity: 0.5; cursor: default; }}
-.error {{ background: #fde; border: 1px solid #c33; padding: 0.5rem 1rem; border-radius: 4px; margin-bottom: 1rem; }}
-.diagnose-bar {{ margin-top: 0.5rem; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }}
-.diagnose-status {{ font-size: 0.85rem; color: #666; margin-left: 0.5rem; }}
-.diag {{ display: flex; flex-direction: column; gap: 1rem; background: #f6f8fa; border: 1px solid #ccc; border-radius: 6px; padding: 0.75rem 1rem; margin-top: 0.5rem; }}
-.diaggroup {{ }}
-.diaggroup h4 {{ font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: #777; margin: 0 0 0.35rem; }}
-.diagrow {{ display: flex; align-items: baseline; gap: 0.5rem; font-size: 0.85rem; padding: 0.15rem 0; }}
-.diagrow .badge {{ flex: none; font-size: 0.68rem; font-weight: 700; padding: 0.05rem 0.4rem; border-radius: 3px; text-transform: uppercase; }}
-.diagrow.ok .badge {{ background: #e3f3e9; color: #1a7a1a; }}
-.diagrow.flag .badge {{ background: #fdecd2; color: #a05a00; }}
-.diagrow.info .badge {{ background: #e8ebef; color: #556; }}
-.suggestion {{ background: #fff; border: 1px solid #ddd; border-left: 3px solid #2a7; border-radius: 4px; padding: 0.5rem 0.7rem; margin-bottom: 0.5rem; }}
-.suggestion .sugtitle {{ font-weight: 600; font-size: 0.85rem; }}
-.diagwhat, .diagwhy {{ display: block; color: #555; margin-top: 0.15rem; font-size: 0.8rem; }}
-.diagwhy {{ color: #888; font-style: italic; }}
-.diag-applied {{ outline: 2px solid #2a7; outline-offset: 2px; border-radius: 3px; }}
-.token-box {{ background: #f6f8fa; border: 1px solid #ccc; border-radius: 6px; padding: 0.75rem 1rem; margin-bottom: 1rem; }}
-.token-box .field label {{ flex-basis: 200px; }}
-.token-status {{ font-size: 0.8rem; margin-left: 0.5rem; }}
-.token-set {{ color: #1a7a1a; }}
-.token-unset {{ color: #a60; }}
-.token-msg {{ font-size: 0.8rem; margin-left: 0.5rem; }}
-.hidden {{ display: none; }}
-.progress-wrap {{ margin-top: 0.75rem; }}
-.progress-bar {{ background: #e5e5e5; border-radius: 6px; height: 20px; overflow: hidden; }}
-.progress-fill {{ background: #2a7; height: 100%; width: 0%; transition: width 0.3s ease; }}
-.progress-label {{ font-size: 0.85rem; color: #444; margin-top: 0.3rem; }}
-.progress-log {{ background: #111; color: #ddd; padding: 0.75rem; border-radius: 6px; white-space: pre-wrap; font-size: 0.8rem; margin-top: 0.5rem; max-height: 220px; overflow-y: auto; }}
-.progress-result {{ margin-top: 0.5rem; }}
-.progress-result.ok {{ color: #1a7a1a; }}
-.progress-result.err {{ color: #c33; }}
-</style></head>
+{_HEAD_THEME_SCRIPT}
+<style>{_STYLE_BLOCK}</style>
+</head>
 <body>
-<h1>Suno Mastering</h1>
+<div class="page-wrap"><div class="chassis">
+  <div class="rack-ear"><div class="screw"></div><div class="screw"></div><div class="screw"></div><div class="screw"></div></div>
+  <div class="chassis-body">
+    {_KNOB_GRADIENT_DEFS}
 
-<div class="token-box">
-  <div class="field">
-    <label for="hf_token">Hugging Face access token</label>
-    <input type="password" id="hf_token" name="hf_token" placeholder="{'hf_&hellip; (already saved)' if hf_token else 'hf_...'}">
-    <button type="button" onclick="saveToken()">Save token</button>
-  </div>
-  <p class="desc">
-    Needed only for stem separation (Demucs downloads its model from Hugging Face on first use).
-    Don't have one? <a href="{_HF_TOKEN_URL}" target="_blank" rel="noopener">Create a free token at {_HF_TOKEN_URL}</a>
-    (a "Read" token is enough). You only need to save it once &mdash; it's stored in this project's
-    <code>.env</code> file and reused for every future run.
-    {token_status_html}
-    <span class="token-msg" id="tokenMsg"></span>
-  </p>
-</div>
-
-<form id="masterForm">
-  <div class="run-bar">
-    {error_html}
-    <div class="field">
-      <label for="input_path">Input WAV path</label>
-      <input type="text" id="input_path" name="input_path" placeholder="C:\\path\\to\\track.wav" required>
-      <button type="button" onclick="browse()">Browse&hellip;</button>
+    <div class="brand-header">
+      <div class="brand-id">
+        <svg width="28" height="28" viewBox="0 0 28 28"><circle cx="14" cy="14" r="13" fill="url(#sm-knob-grad)" stroke="var(--metal-edge)"/><path d="M7 14h3l1.5-6 3 12 1.5-6h5" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <div>
+          <h1 class="brand-name">SUNO&nbsp;MASTERING</h1>
+          <div class="brand-sub">Type&nbsp;II Mastering Console &middot; 127.0.0.1:{PORT}</div>
+        </div>
+      </div>
+      <div class="header-controls">
+        <div class="token-box">
+          <span class="plate-label-dim">HF&nbsp;Auth</span>
+          <input type="password" id="hf_token" class="lcd-input" placeholder="{'hf_&hellip; (saved)' if hf_token else 'hf_...'}" autocomplete="off">
+          <button type="button" class="btn-plate" onclick="saveToken()">Save</button>
+          {token_status_html}
+          <span class="token-msg" id="tokenMsg"></span>
+        </div>
+        <button type="button" class="finish-toggle" onclick="toggleFinish()" title="Toggle chassis finish">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg>
+        </button>
+      </div>
     </div>
-    <div class="field">
-      <label for="output_dir">Output dir (optional)</label>
-      <input type="text" id="output_dir" name="output_dir">
-    </div>
-    <div class="diagnose-bar">
-      <button type="button" onclick="diagnose()">Diagnose &amp; suggest settings</button>
-      <span class="diagnose-status" id="diagnoseStatus"></span>
-      <button type="submit" id="runBtn">Run mastering</button>
-    </div>
+    <p class="token-help">
+      Needed only for stem separation (Demucs downloads its model from Hugging Face on first use).
+      Don't have one? <a href="{_HF_TOKEN_URL}" target="_blank" rel="noopener">Create a free token</a>
+      (a "Read" token is enough) &mdash; saved once to this project's <code>.env</code> file.
+    </p>
+
+    <div class="groove"></div>
+
+    <form id="masterForm">
+      {error_html}
+      <div class="source-module">
+        <div class="source-row">
+          <div class="source-field">
+            <label class="plate-label-dim" for="input_path">Input WAV path</label>
+            <input type="text" id="input_path" name="input_path" class="lcd-input" placeholder="C:\\path\\to\\track.wav" autocomplete="off" required>
+          </div>
+          <button type="button" class="btn-plate" onclick="browse()">Load&hellip;</button>
+        </div>
+        <div class="source-row">
+          <div class="source-field">
+            <label class="plate-label-dim" for="output_dir">Output directory (optional)</label>
+            <input type="text" id="output_dir" name="output_dir" class="lcd-input" placeholder="Same folder as input" autocomplete="off">
+          </div>
+        </div>
+        <div class="source-actions">
+          <div>
+            <button type="button" class="btn-plate" onclick="diagnose()">Diagnose</button>
+            <span class="diagnose-status" id="diagnoseStatus"></span>
+          </div>
+          <button type="submit" id="runBtn" class="btn-master">Master</button>
+        </div>
+      </div>
+
+      <div id="diagnosePanel"></div>
+
+      <div id="progressWrap" class="progress-wrap hidden">
+        <div class="progress-inner">
+          <div class="vu-bank">
+            {_vu_meter_svg('L', -6)}
+            {_vu_meter_svg('R', 8)}
+          </div>
+          <pre class="progress-log" id="progressLog"></pre>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+        <div class="progress-label" id="progressLabel"></div>
+        <div class="progress-result" id="progressResult"></div>
+      </div>
+
+      {''.join(top_sections)}
+      {''.join(nested_sections)}
+      {advanced_section}
+
+      <div class="io-row">
+        <span class="plate-label-dim">I/O</span>
+        {_jack_svg()}
+        <span class="io-note">local unit &middot; not exposed beyond 127.0.0.1</span>
+      </div>
+    </form>
+
   </div>
-  <div id="diagnosePanel"></div>
-  <div id="progressWrap" class="progress-wrap hidden">
-    <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
-    <div class="progress-label" id="progressLabel"></div>
-    <pre class="progress-log" id="progressLog"></pre>
-    <div class="progress-result" id="progressResult"></div>
-  </div>
-  {''.join(top_sections)}
-  {''.join(nested_sections)}
-  {advanced_section}
-</form>
-<script>
-async function browse() {{
-  const res = await fetch('/browse');
-  const data = await res.json();
-  if (data.path) document.getElementById('input_path').value = data.path;
-}}
-
-async function saveToken() {{
-  const val = document.getElementById('hf_token').value;
-  const msg = document.getElementById('tokenMsg');
-  if (!val.trim()) {{ msg.textContent = 'Enter a token first.'; return; }}
-  msg.textContent = 'Saving...';
-  try {{
-    const res = await fetch('/token', {{
-      method: 'POST',
-      headers: {{'Content-Type': 'application/x-www-form-urlencoded'}},
-      body: 'token=' + encodeURIComponent(val.trim())
-    }});
-    const data = await res.json();
-    msg.textContent = data.ok ? 'Saved.' : ('Failed: ' + data.error);
-  }} catch (err) {{
-    msg.textContent = 'Failed: ' + err;
-  }}
-}}
-
-async function diagnose() {{
-  const path = document.getElementById('input_path').value.trim();
-  const statusEl = document.getElementById('diagnoseStatus');
-  const panel = document.getElementById('diagnosePanel');
-  if (!path) {{ statusEl.textContent = 'Enter or browse to an input file first.'; return; }}
-  statusEl.textContent = 'Analysing (this reads the file but does not master it)...';
-  panel.innerHTML = '';
-  try {{
-    const res = await fetch('/diagnose', {{
-      method: 'POST',
-      headers: {{'Content-Type': 'application/x-www-form-urlencoded'}},
-      body: 'input_path=' + encodeURIComponent(path)
-    }});
-    const data = await res.json();
-    if (!data.ok) {{ statusEl.textContent = 'Diagnose failed: ' + data.error; return; }}
-    statusEl.textContent = '';
-    panel.innerHTML = data.html;
-    for (const [field, value] of Object.entries(data.checks || {{}})) {{
-      const el = document.querySelector('input[type=checkbox][name="' + field + '"]');
-      if (el) {{
-        el.checked = !!value;
-        el.classList.add('diag-applied');
-        const details = el.closest('details.section');
-        if (details) details.open = true;
-      }}
-    }}
-  }} catch (err) {{
-    statusEl.textContent = 'Diagnose failed: ' + err;
-  }}
-}}
-
-let polling = false;
-
-async function pollStatus() {{
-  const res = await fetch('/status.json');
-  const data = await res.json();
-  const total = data.total || 6;
-  const stage = data.stage || 0;
-  const pct = Math.max(0, Math.min(100, Math.round((stage / total) * 100)));
-  document.getElementById('progressFill').style.width = pct + '%';
-  document.getElementById('progressLabel').textContent = 'Stage ' + stage + ' of ' + total + ' (' + pct + '%)';
-  document.getElementById('progressLog').textContent = data.log.join('\\n');
-  if (data.done) {{
-    polling = false;
-    const resultEl = document.getElementById('progressResult');
-    document.getElementById('runBtn').disabled = false;
-    if (data.error) {{
-      resultEl.className = 'progress-result err';
-      resultEl.textContent = 'FAILED: ' + data.error;
-    }} else {{
-      resultEl.className = 'progress-result ok';
-      resultEl.textContent = data.summary;
-      document.getElementById('progressFill').style.width = '100%';
-    }}
-    return;
-  }}
-  if (polling) setTimeout(pollStatus, 1000);
-}}
-
-document.getElementById('masterForm').addEventListener('submit', async function(e) {{
-  e.preventDefault();
-  const runBtn = document.getElementById('runBtn');
-  const progressWrap = document.getElementById('progressWrap');
-  const resultEl = document.getElementById('progressResult');
-  const params = new URLSearchParams(new FormData(this));
-  runBtn.disabled = true;
-  resultEl.className = 'progress-result';
-  resultEl.textContent = '';
-  document.getElementById('progressLog').textContent = '';
-  document.getElementById('progressFill').style.width = '0%';
-  document.getElementById('progressLabel').textContent = 'Starting...';
-  progressWrap.classList.remove('hidden');
-  try {{
-    const res = await fetch('/run', {{
-      method: 'POST',
-      headers: {{'Content-Type': 'application/x-www-form-urlencoded'}},
-      body: params
-    }});
-    const data = await res.json();
-    if (!data.ok) {{
-      runBtn.disabled = false;
-      resultEl.className = 'progress-result err';
-      resultEl.textContent = data.error;
-      return;
-    }}
-    polling = true;
-    pollStatus();
-  }} catch (err) {{
-    runBtn.disabled = false;
-    resultEl.className = 'progress-result err';
-    resultEl.textContent = String(err);
-  }}
-}});
-</script>
+  <div class="rack-ear right"><div class="screw"></div><div class="screw"></div><div class="screw"></div><div class="screw"></div></div>
+</div></div>
+<script>{_MAIN_SCRIPT}</script>
 </body></html>"""
 
 
