@@ -1,0 +1,42 @@
+name: Tests
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  pytest:
+    # windows-latest: this is a Windows-only app (.bat launchers, PyInstaller
+    # .exe); running CI on the same OS the app actually ships on avoids
+    # false confidence from a Linux-only green check.
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install CPU-only torch
+        # PyPI's default Windows torch wheel bundles CUDA and is several GB;
+        # the project only ever runs Demucs on CPU, so pull the CPU-only
+        # build from the dedicated index instead (see requirements.txt).
+        run: pip install torch==2.13.0 --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run test suite
+        # Runs everything not marked "slow" (the real Demucs/Torch inference
+        # and other >budget NFR tests -- those are a separate, deliberately
+        # manual acceptance gate, not part of routine CI; see the "slow"
+        # marker docstring in pyproject.toml).
+        # -n auto (pytest-xdist): the suite is dominated by ~60 tests that
+        # each run the real end-to-end pipeline.master() on 10-45s of real
+        # DSP work; parallelizing across cores cut a measured subset from
+        # 325s to 108s locally on 8 cores. Standard GitHub-hosted Windows
+        # runners have 2 vCPUs, so expect a smaller (but still real) win here.
+        run: python -m pytest -m "not slow" -n auto -q

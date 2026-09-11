@@ -33,4 +33,6 @@ pythonpath = [
 ]
 markers = [
     "slow: longer-running tests that exercise real Demucs/Torch inference; run as a dedicated NFR acceptance gate, not part of routine fast iteration.",
+    "ground_truth: tests asserting exact values against analytically-derived correct answers for synthetic signals.",
+    "isolated: tests that must not share process state with others in the same run (e.g. model caches, global config).",
 ]
