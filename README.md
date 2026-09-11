@@ -35,6 +35,9 @@ The historical C++ and CMake scaffolding is not the active product strategy. The
 
 - Run the project tests from the repo root using the configured pytest path setup.
 - Use the story implementation directories for targeted work and verification.
+- `master_track.bat` — drag a WAV onto it (or double-click) to master a track from the command line.
+- `master_track_ui.bat` — double-click to open a local browser UI for customising every mastering setting before running.
+- `packaging\build.bat` — builds a standalone `dist\SunoMastering\` folder (bundled Python + all dependencies) that a user can run with no installation. See [packaging](packaging).
 
 ## Notes
 

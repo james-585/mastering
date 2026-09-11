@@ -22,6 +22,7 @@ Thumbs.db
 build/
 build-ninja/
 build-vs2026/
+dist/
 *.log
 
 # Local scratch and runtime output
