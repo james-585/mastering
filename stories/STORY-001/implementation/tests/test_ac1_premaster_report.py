@@ -44,7 +44,7 @@ def test_tc001_full_six_criteria_report(default_config):
 
 def test_tc002_premaster_runs_before_resample(tmp_wav_dir, out_dir, default_config, caplog):
     sr = 32000  # non-standard rate
-    dur = 30.0
+    dur = 5.0
     audio = make_dynamic_track(
         sr, dur, body_amplitude=rms_amplitude_for_dbfs_sine(-20.0),
         transient_amplitude=0.5, transient_period_s=0.5, freq=1000,
@@ -64,7 +64,7 @@ def test_tc002_premaster_runs_before_resample(tmp_wav_dir, out_dir, default_conf
 
 def test_tc003_mono_input_report_no_crash(tmp_wav_dir, out_dir, default_config):
     sr = 44100
-    dur = 30.0
+    dur = 5.0
     mono = make_dynamic_track(sr, dur, body_amplitude=0.1, transient_amplitude=0.5, stereo=False)
 
     m = measure_all(mono, sr, default_config)

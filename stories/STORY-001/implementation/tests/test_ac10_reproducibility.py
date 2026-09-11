@@ -19,7 +19,7 @@ def _hash_file(path):
 
 def test_tc090_identical_input_config_byte_identical_output(tmp_wav_dir, default_config):
     sr = 44100
-    audio = make_dynamic_track(sr, 20.0, body_amplitude=0.1, transient_amplitude=0.4)
+    audio = make_dynamic_track(sr, 5.0, body_amplitude=0.1, transient_amplitude=0.4)
     path = write_wav(tmp_wav_dir / "tc090.wav", audio, sr)
 
     out1 = (tmp_wav_dir / "out1").resolve()
@@ -50,7 +50,7 @@ def test_tc091_golden_file_regression():
 
 def test_tc092_different_dither_seed_changes_bytes_not_measurements(tmp_wav_dir, default_config):
     sr = 44100
-    audio = make_dynamic_track(sr, 20.0, body_amplitude=0.1, transient_amplitude=0.4)
+    audio = make_dynamic_track(sr, 5.0, body_amplitude=0.1, transient_amplitude=0.4)
     path = write_wav(tmp_wav_dir / "tc092.wav", audio, sr)
 
     cfg_a = dataclasses.replace(default_config, dither_seed=1)
@@ -70,7 +70,7 @@ def test_tc092_different_dither_seed_changes_bytes_not_measurements(tmp_wav_dir,
 
 def test_tc093_solver_iteration_deterministic_regardless_of_timing(tmp_wav_dir, default_config, monkeypatch):
     sr = 44100
-    audio = make_dynamic_track(sr, 20.0, body_amplitude=0.1, transient_amplitude=0.4)
+    audio = make_dynamic_track(sr, 5.0, body_amplitude=0.1, transient_amplitude=0.4)
     path = write_wav(tmp_wav_dir / "tc093.wav", audio, sr)
 
     out1 = (tmp_wav_dir / "outN").resolve(); out1.mkdir()

@@ -16,7 +16,7 @@ from .conftest import make_dynamic_track, write_wav
 
 def test_tc100_input_hash_unchanged(tmp_wav_dir, out_dir, default_config):
     sr = 44100
-    audio = make_dynamic_track(sr, 15.0, body_amplitude=0.1, transient_amplitude=0.4)
+    audio = make_dynamic_track(sr, 5.0, body_amplitude=0.1, transient_amplitude=0.4)
     path = write_wav(tmp_wav_dir / "tc100.wav", audio, sr)
 
     before_hash = compute_file_hash(str(path))
@@ -38,7 +38,7 @@ def test_tc101_output_equal_to_input_hard_rejected(tmp_wav_dir, default_config, 
     as the input. This must be hard-rejected before any write, via a typed
     error, per AC11."""
     sr = 44100
-    audio = make_dynamic_track(sr, 10.0, body_amplitude=0.1, transient_amplitude=0.4)
+    audio = make_dynamic_track(sr, 5.0, body_amplitude=0.1, transient_amplitude=0.4)
     path = tmp_wav_dir / "tc101.wav"
     write_wav(path, audio, sr)
     before_hash = compute_file_hash(str(path))
@@ -64,7 +64,7 @@ def test_tc101_output_equal_to_input_hard_rejected(tmp_wav_dir, default_config, 
 
 def test_tc102_input_never_opened_write_mode(tmp_wav_dir, out_dir, default_config):
     sr = 44100
-    audio = make_dynamic_track(sr, 10.0, body_amplitude=0.1, transient_amplitude=0.4)
+    audio = make_dynamic_track(sr, 5.0, body_amplitude=0.1, transient_amplitude=0.4)
     path = write_wav(tmp_wav_dir / "tc102.wav", audio, sr)
 
     os.chmod(path, stat.S_IREAD)
@@ -77,7 +77,7 @@ def test_tc102_input_never_opened_write_mode(tmp_wav_dir, out_dir, default_confi
 
 def test_tc103_output_always_new_location(tmp_wav_dir, out_dir, default_config):
     sr = 44100
-    audio = make_dynamic_track(sr, 10.0, body_amplitude=0.1, transient_amplitude=0.4)
+    audio = make_dynamic_track(sr, 5.0, body_amplitude=0.1, transient_amplitude=0.4)
     path = write_wav(tmp_wav_dir / "tc103.wav", audio, sr)
     result = pipeline.master(str(path), output_dir=out_dir, config=default_config)
 
@@ -87,7 +87,7 @@ def test_tc103_output_always_new_location(tmp_wav_dir, out_dir, default_config):
 
 def test_tc104_rerun_with_different_settings_independent_outputs(tmp_wav_dir, default_config):
     sr = 44100
-    audio = make_dynamic_track(sr, 15.0, body_amplitude=0.1, transient_amplitude=0.4)
+    audio = make_dynamic_track(sr, 5.0, body_amplitude=0.1, transient_amplitude=0.4)
     path = write_wav(tmp_wav_dir / "tc104.wav", audio, sr)
     before_hash = compute_file_hash(str(path))
 

@@ -25,7 +25,7 @@ from .conftest import make_dynamic_track, rms_amplitude_for_dbfs_sine, write_wav
 
 def _run(tmp_wav_dir, out_dir, config, name="track.wav", **kw):
     sr = kw.pop("sr", 44100)
-    dur = kw.pop("dur", 30.0)
+    dur = kw.pop("dur", 5.0)
     audio = make_dynamic_track(sr, dur, **kw)
     path = write_wav(tmp_wav_dir / name, audio, sr)
     return pipeline.master(path, output_dir=out_dir, config=config), path
@@ -44,7 +44,7 @@ def test_tc070_report_covers_all_six_criteria_side_by_side(tmp_wav_dir, out_dir,
 
 def test_tc071_corrective_action_log_completeness(tmp_wav_dir, out_dir, default_config):
     sr = 32000  # non-standard, forces resample
-    dur = 30.0
+    dur = 5.0
     body = rms_amplitude_for_dbfs_sine(-28.0)
     audio = make_dynamic_track(sr, dur, body_amplitude=body, transient_amplitude=0.9, freq=220)
     # inject muddiness by adding a strong 300Hz component
@@ -74,7 +74,7 @@ def test_tc072_no_rationale_when_band_reached_cleanly(tmp_wav_dir, out_dir, defa
 
 def test_tc073_source_hash_recorded_correctly(tmp_wav_dir, out_dir, default_config):
     sr = 44100
-    audio = make_dynamic_track(sr, 20.0, body_amplitude=0.1, transient_amplitude=0.4)
+    audio = make_dynamic_track(sr, 5.0, body_amplitude=0.1, transient_amplitude=0.4)
     path = write_wav(tmp_wav_dir / "tc073.wav", audio, sr)
 
     expected_hash = compute_file_hash(str(path))

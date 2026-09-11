@@ -15,7 +15,7 @@ from .conftest import make_dynamic_track, write_wav
 
 @pytest.mark.parametrize("sr,subtype", [(44100, "PCM_16"), (48000, "PCM_24"), (44100, "FLOAT")])
 def test_tc080_output_is_valid_24bit_pcm_wav(tmp_wav_dir, out_dir, default_config, sr, subtype):
-    audio = make_dynamic_track(sr, 20.0, body_amplitude=0.1, transient_amplitude=0.4)
+    audio = make_dynamic_track(sr, 5.0, body_amplitude=0.1, transient_amplitude=0.4)
     path = write_wav(tmp_wav_dir / f"tc080_{subtype}.wav", audio, sr, subtype=subtype)
     result = pipeline.master(path, output_dir=out_dir, config=default_config)
 
@@ -26,7 +26,7 @@ def test_tc080_output_is_valid_24bit_pcm_wav(tmp_wav_dir, out_dir, default_confi
 
 @pytest.mark.parametrize("sr", [44100, 48000])
 def test_tc081_output_sample_rate_matches_source(tmp_wav_dir, out_dir, default_config, sr):
-    audio = make_dynamic_track(sr, 20.0, body_amplitude=0.1, transient_amplitude=0.4)
+    audio = make_dynamic_track(sr, 5.0, body_amplitude=0.1, transient_amplitude=0.4)
     path = write_wav(tmp_wav_dir / f"tc081_{sr}.wav", audio, sr)
     result = pipeline.master(path, output_dir=out_dir, config=default_config)
     info = sf.info(result.output_path)
@@ -35,7 +35,7 @@ def test_tc081_output_sample_rate_matches_source(tmp_wav_dir, out_dir, default_c
 
 @pytest.mark.parametrize("sr", [22050, 32000, 88200, 96000])
 def test_tc082_nonstandard_rate_defaults_to_44100_logged(tmp_wav_dir, out_dir, default_config, sr):
-    audio = make_dynamic_track(sr, 20.0, body_amplitude=0.1, transient_amplitude=0.4)
+    audio = make_dynamic_track(sr, 5.0, body_amplitude=0.1, transient_amplitude=0.4)
     path = write_wav(tmp_wav_dir / f"tc082_{sr}.wav", audio, sr)
     result = pipeline.master(path, output_dir=out_dir, config=default_config)
 
@@ -48,7 +48,7 @@ def test_tc082_nonstandard_rate_defaults_to_44100_logged(tmp_wav_dir, out_dir, d
 
 def test_tc083_standard_bwf_metadata_chunk_preserved(tmp_wav_dir, out_dir, default_config):
     sr = 44100
-    audio = make_dynamic_track(sr, 10.0, body_amplitude=0.1, transient_amplitude=0.4)
+    audio = make_dynamic_track(sr, 5.0, body_amplitude=0.1, transient_amplitude=0.4)
     path = tmp_wav_dir / "tc083.wav"
     write_wav(path, audio, sr)
 
@@ -65,7 +65,7 @@ def test_tc083_standard_bwf_metadata_chunk_preserved(tmp_wav_dir, out_dir, defau
 
 def test_tc084_unrecognized_chunk_passes_through_with_warning(tmp_wav_dir, out_dir, default_config, caplog):
     sr = 44100
-    audio = make_dynamic_track(sr, 10.0, body_amplitude=0.1, transient_amplitude=0.4)
+    audio = make_dynamic_track(sr, 5.0, body_amplitude=0.1, transient_amplitude=0.4)
     path = tmp_wav_dir / "tc084.wav"
     write_wav(path, audio, sr)
     _append_chunk(path, b"XTRA", b"arbitrary payload data")
@@ -104,7 +104,7 @@ def test_tc085_malformed_chunks_fail_gracefully(tmp_wav_dir, out_dir, default_co
 
 def test_tc086_multiple_interleaved_chunks_all_survive(tmp_wav_dir, out_dir, default_config):
     sr = 44100
-    audio = make_dynamic_track(sr, 10.0, body_amplitude=0.1, transient_amplitude=0.4)
+    audio = make_dynamic_track(sr, 5.0, body_amplitude=0.1, transient_amplitude=0.4)
     path = tmp_wav_dir / "tc086.wav"
     write_wav(path, audio, sr)
     _append_chunk(path, b"UNK1", b"unknown-one")

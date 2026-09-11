@@ -25,6 +25,11 @@ def test_tc050_full_scale_square_wave_all_clipped(default_config):
 
 def test_tc051_already_clipped_source_detected_no_error(tmp_wav_dir, out_dir, default_config):
     sr = 44100
+    # NOTE: deliberately NOT shrunk like its siblings in this file -- at 5s
+    # duration the 2s injected clip region is a large enough fraction of the
+    # track to drag overall measured DR below the solver's DR floor,
+    # triggering UnresolvableMasteringConstraintError (verified empirically).
+    # 30s keeps the clip region a small, representative fraction of the track.
     audio = make_dynamic_track(sr, 30.0, body_amplitude=0.1, transient_amplitude=0.4, freq=220)
     clip_start = int(10 * sr)
     clip_len = int(2 * sr)
@@ -41,6 +46,7 @@ def test_tc051_already_clipped_source_detected_no_error(tmp_wav_dir, out_dir, de
 
 def test_tc052_mastering_never_amplifies_existing_clipping(tmp_wav_dir, out_dir, default_config):
     sr = 44100
+    # NOTE: not shrunk -- see test_tc051's comment; same clip-ratio issue.
     audio = make_dynamic_track(sr, 30.0, body_amplitude=0.1, transient_amplitude=0.4, freq=220)
     clip_start = int(10 * sr)
     clip_len = int(2 * sr)
@@ -56,7 +62,7 @@ def test_tc053_no_new_clipping_on_near_ceiling_quiet_source(tmp_wav_dir, out_dir
     sr = 44100
     body = rms_amplitude_for_dbfs_sine(-25.0)
     transient = 10 ** (-0.8 / 20)  # just under -1dBFS
-    audio = make_dynamic_track(sr, 30.0, body_amplitude=body, transient_amplitude=transient, freq=220)
+    audio = make_dynamic_track(sr, 5.0, body_amplitude=body, transient_amplitude=transient, freq=220)
 
     path = write_wav(tmp_wav_dir / "tc053.wav", audio, sr)
     result = pipeline.master(path, output_dir=out_dir, config=default_config)

@@ -17,7 +17,7 @@ from .conftest import make_dynamic_track, write_wav
 @pytest.mark.parametrize("sr", [44100, 48000, 32000])
 @pytest.mark.parametrize("subtype", ["PCM_16", "PCM_24", "FLOAT"])
 def test_tc120_sample_rate_bit_depth_matrix(tmp_wav_dir, out_dir, default_config, sr, subtype):
-    audio = make_dynamic_track(sr, 15.0, body_amplitude=0.1, transient_amplitude=0.4)
+    audio = make_dynamic_track(sr, 5.0, body_amplitude=0.1, transient_amplitude=0.4)
     path = write_wav(tmp_wav_dir / f"tc120_{sr}_{subtype}.wav", audio, sr, subtype=subtype)
     result = pipeline.master(path, output_dir=out_dir, config=default_config)
 
