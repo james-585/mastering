@@ -1,35 +1,49 @@
 # Suno Mastering
 
-This repository is a local, Python-first mastering workflow for Suno-generated audio. The active product direction is the stem-aware, CLI-oriented pipeline defined in the project documentation and story artifacts under [stories](stories).
+A stem-aware mastering pipeline purpose-built for AI-generated (Suno) tracks. It separates a mix into stems, repairs generation-specific artifacts (transient smearing, digital haze, spurious whistles, phase swish) at the stem level, then re-integrates, EQs, and loudness-normalizes to a streaming-safe LUFS/true-peak target — producing a mastered WAV plus a quality report.
 
-## Active product path
+Unlike generic "AI mastering" services, this doesn't pretend to fix everything: it works from a documented model of what's actually fixable from a stereo mixdown (see [stories/STORY-001/architecture.md](stories/STORY-001/architecture.md)) and reports honestly when it can't.
 
-The current active implementation lives under:
+## Requirements
 
-- [stories/STORY-001/implementation](stories/STORY-001/implementation)
+- Python 3.10+ (developed and tested on 3.14)
+- Windows (the packaged `.exe` and `.bat` launchers are Windows-specific; the Python pipeline itself has no Windows-only dependencies)
+- ~2 GB free disk for the PyTorch/Demucs stem-separation stack
 
-This is the codebase to open first when working on the product itself.
+## Install
+
+**Easiest — no Python needed:** build (or download, if a release is provided) the standalone folder and run the `.exe` directly. See [packaging](packaging) for how to build it yourself.
+
+**From source:**
+
+```bash
+pip install torch==2.13.0 --index-url https://download.pytorch.org/whl/cpu
+pip install -r requirements.txt
+pip install -e stories/STORY-001/implementation
+```
+
+The first line installs the CPU-only PyTorch build — installing `torch` straight from PyPI via `requirements.txt` alone pulls a much larger CUDA-bundled wheel you don't need for this project.
+
+## Usage
+
+```bash
+python -m suno_mastering path/to/track.wav --output-dir out/
+```
+
+Or use the drag-and-drop launchers from the repo root:
+
+- **`master_track.bat`** — drag a WAV onto it (or double-click) to master from the command line.
+- **`master_track_ui.bat`** — double-click to open a local browser UI for customising every mastering setting before running.
+
+Stem separation (Demucs) needs a Hugging Face access token the first time it downloads model weights — both the CLI and the web UI prompt for this.
 
 ## Repo layout
 
-The repository intentionally mixes a few different categories:
-
-- Source and historical workflow docs: [stories](stories)
-- Reference material: [Reference Tracks](Reference%20Tracks) (empty by default — see below)
-- Root-level project entry points and metadata: this folder
-- Generated build and temporary output: [build](build), [build-ninja](build-ninja), [build-vs2026](build-vs2026), [tmp](tmp), [tmp_e2e_run](tmp_e2e_run), [test_runs](test_runs)
-- Historical experimental C++ scaffolding: [CMakeLists.txt](CMakeLists.txt), [src_cpp](src_cpp)
-
-## Important rule
-
-The historical C++ and CMake scaffolding is not the active product strategy. The project guidance in [.claude/docs/CLAUDE.md](.claude/docs/CLAUDE.md) explicitly treats that work as legacy/experimental and keeps the active product in the Python-first story pipeline.
-
-## Expected developer flow
-
-1. Start with the story docs in [stories](stories).
-2. Work in the active implementation under [stories/STORY-001/implementation](stories/STORY-001/implementation).
-3. Keep generated build/test scratch output out of the source tree when possible.
-4. Treat the root directory as the project entry point, not as a dumping ground for experiments.
+- Active implementation: [stories/STORY-001/implementation](stories/STORY-001/implementation) — start here for any product work.
+- Story-based requirements/architecture/defect history: [stories](stories)
+- Reference audio fixtures (local-only, see below): [Reference Tracks](Reference%20Tracks)
+- Packaging (PyInstaller build): [packaging](packaging)
+- Historical experimental C++ scaffolding (not the active product path): [CMakeLists.txt](CMakeLists.txt), [src_cpp](src_cpp)
 
 ## Reference Tracks
 
@@ -44,14 +58,13 @@ A handful of tests and scripts skip automatically when a given file is missing, 
 
 Drop your own copies into `Reference Tracks/` using these exact filenames to enable those tests locally.
 
-## Common commands
+## Development
 
-- Run the project tests from the repo root using the configured pytest path setup.
-- Use the story implementation directories for targeted work and verification.
-- `master_track.bat` — drag a WAV onto it (or double-click) to master a track from the command line.
-- `master_track_ui.bat` — double-click to open a local browser UI for customising every mastering setting before running.
-- `packaging\build.bat` — builds a standalone `dist\SunoMastering\` folder (bundled Python + all dependencies) that a user can run with no installation. See [packaging](packaging).
+1. Work in [stories/STORY-001/implementation](stories/STORY-001/implementation); each story under [stories](stories) documents its own requirements/architecture/defects.
+2. Run the test suite from the repo root: `pytest -m "not slow" -n auto` (matches CI exactly).
+3. The historical C++/CMake scaffolding under [src_cpp](src_cpp) is legacy/experimental, not the active product strategy — see [.claude/docs/CLAUDE.md](.claude/docs/CLAUDE.md).
+4. Keep generated build/test scratch output out of the source tree where possible.
 
-## Notes
+## License
 
-This repository is still in flux while story-based work is being completed. The layout is intentionally organized around the active product, the historical story archive, and the generated/temporary artifacts that support local debugging and experimentation.
+Not yet decided — do not redistribute until a LICENSE is added.
