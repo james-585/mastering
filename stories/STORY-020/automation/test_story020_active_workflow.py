@@ -61,8 +61,15 @@ class FakeModel:
 
 
 @pytest.fixture(autouse=True)
-def isolated_model_cache():
+def isolated_model_cache(monkeypatch):
     clear_model_cache()
+    # See STORY-021/automation/test_story021_active_runtime.py: StemConfig's
+    # default stem_cache_dir is the real, persistent ~/.cache/suno-mastering/stems
+    # disk cache. This file passed "by luck" under sequential execution, but
+    # -n auto now runs multiple worker processes against that same shared,
+    # persistent path concurrently -- disable disk caching here too.
+    monkeypatch.setattr("suno_mastering.io.stem_cache.load", lambda *a, **k: None)
+    monkeypatch.setattr("suno_mastering.io.stem_cache.save", lambda *a, **k: None)
     yield
     clear_model_cache()
 
