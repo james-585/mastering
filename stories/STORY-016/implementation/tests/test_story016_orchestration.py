@@ -1,10 +1,20 @@
+from pathlib import Path
+
 import numpy as np
+import pytest
 import soundfile as sf
 
 from orchestration import MasteringOrchestrator
 
 
 SR = 48000
+
+# Real reference track, not committed to the repo (large, commercially
+# licensed audio) -- this is a local-only regression gate. Resolved relative
+# to the repo root rather than hardcoded to one machine's home directory, and
+# skipped (not failed) when the file isn't present, e.g. in CI.
+_REPO_ROOT = Path(__file__).resolve().parents[4]
+_REAL_TRACK = _REPO_ROOT / "Reference Tracks" / "Sunday Club.wav"
 
 
 def _stereo_sine(freq_hz=220.0, amplitude=0.25, width=0.12, duration=0.5):
@@ -94,9 +104,9 @@ def test_true_peak_safety_gate():
     assert any(step["stage"] == "final_safety" for step in result["audit"])
 
 
+@pytest.mark.skipif(not _REAL_TRACK.exists(), reason="local-only reference track not present")
 def test_real_track_pipeline_runs_and_exports():
-    path = r"C:\Users\james\Documents\suno-mastering\Reference Tracks\Sunday Club.wav"
-    data, sample_rate = sf.read(path, dtype="float64", always_2d=True)
+    data, sample_rate = sf.read(str(_REAL_TRACK), dtype="float64", always_2d=True)
     pipeline = MasteringOrchestrator()
 
     result = pipeline.run(data, sample_rate, stems=None, use_stems=True, allow_stereo_fallback=True)

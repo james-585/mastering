@@ -27,9 +27,10 @@ from typing import Optional
 
 import numpy as np
 
+from ._paths import bundle_root
 from .progress import NullReporter, render_stage_bar
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
+_REPO_ROOT = bundle_root()
 _FOR_STORY_11_17 = [
     _REPO_ROOT / "stories" / "STORY-011" / "implementation",
     _REPO_ROOT / "stories" / "STORY-012" / "implementation",
@@ -474,9 +475,11 @@ def master(
 
     # --- [3c] Dynamics Leveling (STORY-027 §7) ---
     # Inserted after EQ/harshness, before stereo width and the loudness solver.
-    # Returns post_leveler_dr_db always — passed to solver instead of source_dr_db.
-    # Proof: downward-only leveling reduces TT DR ⟹ dr_required_new ≤ dr_required_old
-    # (architecture §7.4).  Solver constraints are never harder than without the leveler.
+    # leveling_action.post_leveler_dr_db reflects the buffer state after this
+    # stage and is reported in dynamics_leveling below, but is NOT passed as
+    # the solver's source_dr_db -- see the comment at the loudness-and-limit
+    # solve call (further down, stage [7]) for why that must stay the true
+    # stage-[2] source DR.
     _announce_story_step(3, "Lochness EQ", "dynamics leveling", reporter=reporter)
     audio, leveling_action = dynamics_leveler_mod.apply_dynamics_leveler(
         audio, sr, targets, config
@@ -524,14 +527,20 @@ def master(
 
     # --- [7] dynamic range + final safety ---
     _announce_story_step(5, "Loudness Normalize", "loudness and true-peak safety", reporter=reporter)
-    # STORY-027 §7.4: pass post_leveler_dr_db to the solver instead of the
-    # pre-leveler source_dr_db.  This is the physically correct baseline after
-    # the leveling stage has run (even on the no-op path, the value reflects
-    # the actual buffer state).  Proof: downward-only leveling ⟹
-    # post_leveler_dr_db ≤ source_dr_db ⟹ dr_required_new ≤ dr_required_old.
-    # Gate 1 BLOCKER 1 resolved in v1.2.
+    # solve_loudness_and_limit's own contract (loudness_limit.py's docstring)
+    # requires source_dr_db to be the true, original, pre-processing source DR
+    # from stage [2] (`before.dynamic_range_db`), not a later-stage value.
+    # STORY-027 §7.4 previously passed leveling_action.post_leveler_dr_db here
+    # instead; that silently weakens the "never reduce DR more than
+    # dr_max_reduction_db vs. the true source" policy once the leveler has
+    # already reduced DR on its own -- dr_required becomes
+    # max(dr_floor, post_leveler_dr - reduction) instead of
+    # max(dr_floor, true_source_dr - reduction), allowing the leveler+solver
+    # combined to remove more total dynamic range than the policy intends.
+    # DEF regression: confirmed against test_ac4_dynamic_range.py TC-034/TC-035
+    # (source_dr/dr_floor_used report fields no longer matched before.dynamic_range_db).
     solver_outcome = loudness_limit.solve_loudness_and_limit(
-        audio, sr, source_dr_db=leveling_action.post_leveler_dr_db, config=config
+        audio, sr, source_dr_db=before.dynamic_range_db, config=config
     )
     audio = solver_outcome.audio
 

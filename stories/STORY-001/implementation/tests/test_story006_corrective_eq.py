@@ -16,6 +16,7 @@ import pytest
 from suno_mastering.mastering.corrective_eq import (
     SpectralCorrectiveAction,
     apply_corrective_eq,
+    _DELIVERY_EFFICIENCY_SUB,
 )
 
 # ---------------------------------------------------------------------------
@@ -606,8 +607,16 @@ def test_tc651_retired_config_fields_absent():
 # ---------------------------------------------------------------------------
 
 def test_tc654_sosfiltfilt_gain_halved_correctly():
-    """Architecture §5.2 BLOCKER 1 resolution: design param = applied/2 → sosfiltfilt doubles it.
-    Verify: 20 Hz pure sine boosted by +2.0 dB applied_db → output gain ≈ +2.0 dB (not +4.0 dB).
+    """Architecture §5.2 BLOCKER 1 resolution: design param = nominal/2 → sosfiltfilt doubles it.
+
+    DEF-027-004 split the sub band's single design gain into two distinct
+    quantities: the filter's design "nominal" (raw_gap / _DELIVERY_EFFICIENCY_SUB,
+    what's actually passed to the shelf constructor, halved) and
+    action.applied_db (nominal * _DELIVERY_EFFICIENCY_SUB — the *band-energy-
+    averaged* delivery across the whole 20-60 Hz band, used for range-compliance
+    bookkeeping). A single 20 Hz probe sits deep in the shelf's plateau, where
+    the filter delivers close to its full nominal gain, not the band average --
+    so this test verifies against nominal, not applied_db.
     Tolerance: ±0.5 dB (shelf at 20 Hz, corner at 60 Hz — solidly in the plateau region).
     """
     # Use 5 s signal so filter transients are negligible relative to steady state
@@ -628,6 +637,11 @@ def test_tc654_sosfiltfilt_gain_halved_correctly():
     applied = sub_actions[0].applied_db
     assert applied > 0.0, f"Expected positive applied_db for sub below range, got {applied}"
 
+    # applied_db is the band-energy-averaged delivery (DEF-027-004); recover the
+    # filter's actual design nominal (what a single-frequency probe should read)
+    # by reversing that compensation.
+    nominal = applied / _DELIVERY_EFFICIENCY_SUB
+
     # Measure RMS of the output on the central 4s to avoid filter transients
     start = int(0.5 * SR)
     end = int(4.5 * SR)
@@ -636,9 +650,10 @@ def test_tc654_sosfiltfilt_gain_halved_correctly():
 
     gain_db = 20.0 * np.log10(rms_after_L / rms_before)
 
-    assert abs(gain_db - applied) < 0.5, (
-        f"Expected gain at 20 Hz ≈ +{applied:.3f} dB (= applied_db), got {gain_db:.3f} dB. "
-        f"If gain ≈ {2 * applied:.1f} dB, the design parameter was NOT halved before sosfiltfilt."
+    assert abs(gain_db - nominal) < 0.5, (
+        f"Expected gain at 20 Hz ≈ +{nominal:.3f} dB (design nominal = applied_db / "
+        f"{_DELIVERY_EFFICIENCY_SUB}), got {gain_db:.3f} dB. "
+        f"If gain ≈ {2 * nominal:.1f} dB, the design parameter was NOT halved before sosfiltfilt."
     )
 
 

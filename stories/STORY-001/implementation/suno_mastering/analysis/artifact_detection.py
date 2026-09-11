@@ -1036,18 +1036,28 @@ def detect_artifacts(
         The returned audio array is byte-identical to the input (SHA-256 checked).
 
     Raises:
-        ValueError: sample rate below minimum or more than 2 channels.
+        ValueError: sample rate is not positive, or more than 2 channels.
         AssertionError: audio array was modified during processing.
 
     Notes:
         - Mono input: PHASE_SWISH is skipped (no inter-channel information).
         - Very short audio (< 1 s): persistence detectors skipped (arch §8).
         - All-zero audio: returns zero flags (silence has no artifacts).
+        - sr below MIN_SAMPLE_RATE_HZ (32000, i.e. < 16 kHz Nyquist): detectors
+          that need the 8-16 kHz band (DIGITAL_HAZE) degrade gracefully and
+          return no flags for that band rather than raising -- callers that
+          resample nonstandard-rate input up to 44100 Hz later in the
+          pipeline (pipeline.py's stage [3]) must still be able to run
+          Stage [2] analysis on the original, pre-resample rate.
     """
+    if sr <= 0:
+        raise ValueError(f"Invalid sample rate: {sr} Hz")
     if sr < MIN_SAMPLE_RATE_HZ:
-        raise ValueError(
-            f"Sample rate {sr} Hz is below the minimum {MIN_SAMPLE_RATE_HZ} Hz required "
-            f"for 8–16 kHz artifact detection (arch §8)."
+        log.warning(
+            "Sample rate %d Hz is below %d Hz (< 16 kHz Nyquist): detectors "
+            "needing the 8-16 kHz band (DIGITAL_HAZE) will report no flags "
+            "for this call (arch §8).",
+            sr, MIN_SAMPLE_RATE_HZ,
         )
 
     audio_hash_in = _sha256(audio)

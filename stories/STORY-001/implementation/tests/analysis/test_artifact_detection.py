@@ -828,6 +828,11 @@ class TestDigitalHaze:
             'Leftfield_-_Melt_Audio.wav',
             'Wavy_Gravy.wav',
         ]
+        # Local-only regression gate: these are large, commercially licensed
+        # reference masters, not committed to the repo. Skip cleanly (e.g. in
+        # CI) rather than error when they aren't present on disk.
+        if not all((reference_dir / name).exists() for name in tracks):
+            pytest.skip("local-only reference tracks not present")
 
         for track_name in tracks:
             path = reference_dir / track_name
@@ -850,6 +855,11 @@ class TestDigitalHaze:
             'Leftfield_-_Melt_Audio.wav',
             'Wavy_Gravy.wav',
         ]
+        # Local-only regression gate: these are large, commercially licensed
+        # reference masters, not committed to the repo. Skip cleanly (e.g. in
+        # CI) rather than error when they aren't present on disk.
+        if not all((reference_dir / name).exists() for name in tracks):
+            pytest.skip("local-only reference tracks not present")
 
         for track_name in tracks:
             path = reference_dir / track_name
@@ -1222,12 +1232,25 @@ class TestContractAndIntegration:
 class TestEdgeCases:
 
     def test_tc015_sample_rate_too_low(self):
-        """TC-015: SR < 32000 → ValueError raised immediately."""
+        """TC-015: SR < 32000 no longer raises (2026-09-11 fix, TC-082 regression).
+
+        detect_artifacts() used to hard-raise for any sr below 32000, but
+        pipeline.master() calls it (via measure_all) on the *original*
+        sample rate at Stage [2], before Stage [3] resamples nonstandard
+        rates up to 44100 -- so a 22050 Hz input (a legitimate, common rate)
+        could never reach the resample step. The 8-16 kHz-band detectors
+        (DIGITAL_HAZE) already degrade gracefully for a too-narrow band
+        (see _detect_digital_haze's own hf_mask/lf_mask empty-band guard);
+        detect_artifacts now relies on that instead of a blanket raise, and
+        the guard only fires for a genuinely invalid (non-positive) rate.
+        """
         rng = np.random.default_rng(42)
         n = int(31999 * 2.5)
         audio = _stereo(rng.standard_normal(n).astype(np.float64) * 0.1)
-        with pytest.raises(ValueError, match="32000"):
-            detect_artifacts(audio, 31999)
+        audio_out, result = detect_artifacts(audio, 31999)  # must not raise
+        assert isinstance(result, ArtifactDetectionResult)
+        haze_flags = _flags_of(result, "DIGITAL_HAZE")
+        assert haze_flags == [], "DIGITAL_HAZE must report no flags when the HF band has no bins"
 
     def test_tc025_sample_rate_32000_accepted(self):
         """TC-025: SR = 32000 Hz is accepted (inclusive lower bound per arch §8)."""

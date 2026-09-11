@@ -37,6 +37,7 @@ from typing import Tuple, Optional
 
 import numpy as np
 
+from ._paths import bundle_root
 from .config import StemConfig
 from .analysis.types import StemSeparationResult
 from .io.stem_separation import split_stems
@@ -45,7 +46,7 @@ from .mastering.stem_whistle_repair import attribute_and_repair_whistles
 
 # STORY-019: deterministic Mid/Side boundary for the `other` stem lives in the
 # story implementation folder (same cross-story pattern as pipeline.py).
-_REPO_ROOT = Path(__file__).resolve().parents[4]
+_REPO_ROOT = bundle_root()
 _STORY_019_IMPL = _REPO_ROOT / "stories" / "STORY-019" / "implementation"
 _STORY_023_IMPL = _REPO_ROOT / "stories" / "STORY-023" / "implementation"
 for _story_impl in (_STORY_019_IMPL, _STORY_023_IMPL):

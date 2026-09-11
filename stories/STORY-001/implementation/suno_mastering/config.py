@@ -12,12 +12,23 @@ import math
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from ._paths import bundle_root, is_frozen
 from .mastering.adaptive_harshness import AdaptiveHarshnessConfig
 
-_DEFAULT_REFERENCE_CURVE = str(
-    Path(__file__).resolve().parent / "reference" / "progressive_house_124bpm.json"
-)
-_DEFAULT_TARGETS_JSON = str(Path(__file__).resolve().parents[4] / "targets.json")
+# Package-relative __file__ is only a real filesystem path in a normal
+# checkout -- a frozen module's code lives inside PyInstaller's zipped
+# archive, so Path(__file__).parent can't be used to find bundled data
+# there. The PyInstaller spec places this same file at
+# bundle_root()/suno_mastering/reference/... instead.
+if is_frozen():
+    _DEFAULT_REFERENCE_CURVE = str(
+        bundle_root() / "suno_mastering" / "reference" / "progressive_house_124bpm.json"
+    )
+else:
+    _DEFAULT_REFERENCE_CURVE = str(
+        Path(__file__).resolve().parent / "reference" / "progressive_house_124bpm.json"
+    )
+_DEFAULT_TARGETS_JSON = str(bundle_root() / "targets.json")
 
 
 @dataclass

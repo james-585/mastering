@@ -16,6 +16,7 @@ import logging
 import sys
 from pathlib import Path
 
+from ._paths import bundle_root
 from .config import MasteringConfig, StemConfig
 from .errors import MasteringError
 from .pipeline import master
@@ -24,7 +25,7 @@ from .report.render import render_json, render_markdown
 
 # STORY-024: operator-facing workflow screen lives in the story implementation
 # folder (same cross-story pattern as pipeline.py uses for stories 11-15).
-_REPO_ROOT = Path(__file__).resolve().parents[4]
+_REPO_ROOT = bundle_root()
 _STORY_024_IMPL = _REPO_ROOT / "stories" / "STORY-024" / "implementation"
 if str(_STORY_024_IMPL) not in sys.path:
     sys.path.insert(0, str(_STORY_024_IMPL))
@@ -265,6 +266,17 @@ def _prompt_artifact_toggles(args, config) -> None:
 
 
 def main(argv=None) -> int:
+    # Some Windows consoles use a legacy codepage (e.g. cp1252) that can't
+    # represent the box-drawing/arrow characters the progress bar and
+    # workflow screen print; fall back to replacing them instead of crashing
+    # the whole run partway through.
+    for _stream in (sys.stdout, sys.stderr):
+        if hasattr(_stream, "reconfigure"):
+            try:
+                _stream.reconfigure(errors="replace")
+            except (ValueError, OSError):
+                pass
+
     parser = build_arg_parser()
     args = parser.parse_args(argv)
 

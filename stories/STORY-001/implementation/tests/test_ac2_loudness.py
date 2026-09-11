@@ -164,13 +164,22 @@ def test_tc016_untested_middle_tier_below_14_5_above_16(tmp_wav_dir, out_dir, de
     Fixture below is empirically tuned (per test-cases.md TC-016's own
     "tune the fixture's crest factor empirically" flag) to land in the
     untested middle tier -- confirmed via direct instrumentation to read
-    ~-15.47 LUFS, i.e. below -14.5 (baseline rationale applies) but above
+    ~-15.08 LUFS, i.e. below -14.5 (baseline rationale applies) but above
     -16.0 (below_documented_lufs_floor must be False), unlike TC-015/TC-130
-    (~-19.8/-20.9) and TC-131 (genuinely unresolvable)."""
+    (~-19.8/-20.9) and TC-131 (genuinely unresolvable).
+
+    transient_amplitude re-tuned from 0.7 to 0.65 (2026-09-11): the pipeline's
+    loudness solver was passing the wrong DR baseline into
+    solve_loudness_and_limit (post-leveler DR instead of the true stage-[2]
+    source DR, see pipeline.py) -- fixing that (regression guard:
+    test_ac4_dynamic_range.py TC-034/TC-035) moved this fixture's measured
+    output from -19.23 LUFS to -16.10, right on the floor boundary this test
+    is specifically designed to stay clear of. Re-tuned against the corrected
+    pipeline to land solidly in the middle tier again."""
     sr = 44100
     audio = make_dynamic_track(
         sr, 40.0, body_amplitude=rms_amplitude_for_dbfs_sine(-24.0),
-        transient_amplitude=0.7, transient_period_s=1.0, freq=220,
+        transient_amplitude=0.65, transient_period_s=1.0, freq=220,
     )
     path = write_wav(tmp_wav_dir / "tc016.wav", audio, sr)
 

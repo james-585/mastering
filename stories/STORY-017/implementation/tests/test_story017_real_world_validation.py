@@ -1,9 +1,19 @@
 import numpy as np
+import pytest
 
 from pathlib import Path
 
 from real_world_validation import build_validation_report
 from human_review_capture import HumanReviewRecord
+
+# Real reference tracks, not committed to the repo (large, commercially
+# licensed audio) -- this is a local-only regression gate. Resolved relative
+# to the repo root rather than hardcoded to one machine's home directory, and
+# skipped (not failed) when the files aren't present, e.g. in CI.
+_REPO_ROOT = Path(__file__).resolve().parents[4]
+_REFERENCE_DIR = _REPO_ROOT / "Reference Tracks"
+_TRACK_NAMES = ["Sunday Club.wav", "Wavy_Gravy.wav", "Leftfield_-_Melt_Audio.wav"]
+_ALL_TRACKS_PRESENT = all((_REFERENCE_DIR / name).exists() for name in _TRACK_NAMES)
 
 
 def _real_human_review(decision: str, note: str) -> HumanReviewRecord:
@@ -16,12 +26,9 @@ def _real_human_review(decision: str, note: str) -> HumanReviewRecord:
     )
 
 
+@pytest.mark.skipif(not _ALL_TRACKS_PRESENT, reason="local-only reference tracks not present")
 def test_story017_real_world_validation_report_is_auditable():
-    paths = [
-        "C:/Users/james/Documents/suno-mastering/Reference Tracks/Sunday Club.wav",
-        "C:/Users/james/Documents/suno-mastering/Reference Tracks/Wavy_Gravy.wav",
-        "C:/Users/james/Documents/suno-mastering/Reference Tracks/Leftfield_-_Melt_Audio.wav",
-    ]
+    paths = [str(_REFERENCE_DIR / name) for name in _TRACK_NAMES]
     human_reviews = {
         str(Path(path)): _real_human_review("pass", "Listened through on monitors; balance and loudness sound convincing and safe.")
         for path in paths
