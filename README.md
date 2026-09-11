@@ -67,4 +67,4 @@ Drop your own copies into `Reference Tracks/` using these exact filenames to ena
 
 ## License
 
-Not yet decided — do not redistribute until a LICENSE is added.
+[MIT](LICENSE) — see the LICENSE file. Note this covers the code in this repository only: it does not extend to any commercial reference audio you place in `Reference Tracks/` (see above) or to the third-party dependencies pulled in via `requirements.txt`, each of which keeps its own license.

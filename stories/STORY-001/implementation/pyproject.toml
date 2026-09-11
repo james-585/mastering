@@ -7,6 +7,7 @@ name = "suno-mastering"
 version = "0.1.0"
 description = "Automated streaming-ready mastering for Suno-generated WAV exports (STORY-001)."
 requires-python = ">=3.10"
+license = "MIT"
 dependencies = [
     "numpy==2.4.6",
     "scipy==1.18.0",
