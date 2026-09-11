@@ -15,7 +15,7 @@ This is the codebase to open first when working on the product itself.
 The repository intentionally mixes a few different categories:
 
 - Source and historical workflow docs: [stories](stories)
-- Reference material: [Reference Tracks](Reference%20Tracks)
+- Reference material: [Reference Tracks](Reference%20Tracks) (empty by default — see below)
 - Root-level project entry points and metadata: this folder
 - Generated build and temporary output: [build](build), [build-ninja](build-ninja), [build-vs2026](build-vs2026), [tmp](tmp), [tmp_e2e_run](tmp_e2e_run), [test_runs](test_runs)
 - Historical experimental C++ scaffolding: [CMakeLists.txt](CMakeLists.txt), [src_cpp](src_cpp)
@@ -30,6 +30,19 @@ The historical C++ and CMake scaffolding is not the active product strategy. The
 2. Work in the active implementation under [stories/STORY-001/implementation](stories/STORY-001/implementation).
 3. Keep generated build/test scratch output out of the source tree when possible.
 4. Treat the root directory as the project entry point, not as a dumping ground for experiments.
+
+## Reference Tracks
+
+`Reference Tracks/` holds commercial audio (e.g. GusGus, Leftfield) used as real-world test fixtures. These `.wav` files are never committed to this repo (`.gitignore` excludes all `*.wav`) and are not bundled into the packaged `.exe` — only you having a personal, legally-obtained copy of a track locally makes those files present.
+
+A handful of tests and scripts skip automatically when a given file is missing, but reference it by exact name if you want to run them:
+
+- `Sunday Club.wav`
+- `GusGus_-_Over_Arabian_Horse_Album.wav`
+- `Wavy_Gravy.wav`
+- `Leftfield_-_Melt_Audio.wav`
+
+Drop your own copies into `Reference Tracks/` using these exact filenames to enable those tests locally.
 
 ## Common commands
 
