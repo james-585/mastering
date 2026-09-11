@@ -2,8 +2,10 @@
 TC-130..TC-133."""
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -106,9 +108,20 @@ def test_tc133_cli_clean_error_nonzero_exit(tmp_wav_dir):
     corrupt = tmp_wav_dir / "corrupt.wav"
     corrupt.write_bytes(b"NOTRIFFHEADERBYTES" + b"\x00" * 100)
 
+    # suno_mastering is not pip-installed in the test env (no `pip install -e .`),
+    # so a child interpreter needs its own PYTHONPATH to find it -- pytest's
+    # `pythonpath` ini option only affects the current process.
+    implementation_dir = str(Path(__file__).resolve().parents[1])
+    child_env = dict(os.environ)
+    existing_pythonpath = child_env.get("PYTHONPATH", "")
+    child_env["PYTHONPATH"] = (
+        implementation_dir + os.pathsep + existing_pythonpath
+        if existing_pythonpath else implementation_dir
+    )
+
     proc = subprocess.run(
         [sys.executable, "-m", "suno_mastering", str(corrupt)],
-        capture_output=True, text=True, timeout=30,
+        capture_output=True, text=True, timeout=30, env=child_env,
     )
     assert proc.returncode != 0
     combined = (proc.stdout or "") + (proc.stderr or "")

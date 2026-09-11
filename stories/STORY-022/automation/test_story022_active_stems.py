@@ -72,8 +72,15 @@ class MinimalMeasurements:
 
 
 @pytest.fixture(autouse=True)
-def isolated_model_cache():
+def isolated_model_cache(monkeypatch):
     clear_model_cache()
+    # See STORY-021/automation/test_story021_active_runtime.py: StemConfig's
+    # default stem_cache_dir is the real, persistent ~/.cache/suno-mastering/stems
+    # disk cache. Without disabling it, these tests read stale results back
+    # from prior runs (silently skipping model_loader/apply_model_fn) and write
+    # real fake-audio entries into the user's actual cache directory.
+    monkeypatch.setattr("suno_mastering.io.stem_cache.load", lambda *a, **k: None)
+    monkeypatch.setattr("suno_mastering.io.stem_cache.save", lambda *a, **k: None)
     yield
     clear_model_cache()
 

@@ -27,7 +27,10 @@ _TARGETS = {
         "sub": {
             "freq_hz": [20, 60],
             "range_db_re_mid": {"min": -3.747, "max": 1.944},
-            "correction_cap_db": 2.0,
+            # STORY-027 Gate 1 (2026-08-21): raised from 2.0 -> 9.0. At 2.0, the
+            # cap bound before the 0.60x shelf-delivery-efficiency compensation
+            # (DEF-027-004) could deliver its nominal gap; see targets.json.
+            "correction_cap_db": 9.0,
         },
         "low_mid": {
             "freq_hz": [120, 500],
@@ -38,6 +41,9 @@ _TARGETS = {
     "de_mud": {
         "flag_threshold_db_above_mid": 4.0,
         "correction_aim_point_db": 2.0,
+        # low_mid.range_db_re_mid.max(8.522) - correction_aim_point_db(2.0), per
+        # STORY-027 arch §3.3 derivation.
+        "correction_cap_db": 6.522,
     },
 }
 
@@ -62,7 +68,7 @@ def _white_mono():
 # ---------------------------------------------------------------------------
 
 def test_tc612_sub_below_range_cap_binds():
-    """AC4, AC15: sub = -6.247, cap = 2.0 binds.
+    """AC4, AC15: sub = -6.247; under the STORY-027 cap (9.0) this does not bind.
     SpectralCorrectiveAction fields checked per architecture §7.1.
     EXPECTED TO FAIL: SpectralCorrectiveAction missing source_db / aim_point_db (DEF-601).
     """
@@ -75,11 +81,13 @@ def test_tc612_sub_below_range_cap_binds():
     a = sub_actions[0]
 
     assert a.trigger == "range_compliance"
-    # required = -3.747 - (-6.247) = +2.500; cap = 2.0 binds
-    assert abs(a.applied_db - 2.0) < 1e-9, f"applied_db expected +2.0, got {a.applied_db}"
-    assert a.cap_reached is True
-    # arithmetic log field: -6.247 + 2.0 = -4.247
-    assert abs(a.resulting_db - (-4.247)) < 0.001
+    # STORY-027 Gate 1: sub cap raised to 9.0 (was 2.0). required = -3.747 -
+    # (-6.247) = +2.500; well under the cap, so the 0.60x delivery-efficiency
+    # compensation nets out and applied_db == the raw required gap exactly.
+    assert abs(a.applied_db - 2.5) < 1e-9, f"applied_db expected +2.5, got {a.applied_db}"
+    assert a.cap_reached is False
+    # arithmetic log field: -6.247 + 2.5 = -3.747 (reaches range_min exactly)
+    assert abs(a.resulting_db - (-3.747)) < 0.001
 
     # Architecture §7.1 required fields — EXPECTED TO FAIL (DEF-601)
     assert hasattr(a, "source_db"), (
@@ -129,7 +137,8 @@ def test_tc613_sub_below_range_cap_not_binding():
 # ---------------------------------------------------------------------------
 
 def test_tc614_sub_above_range_cap_binds():
-    """AC4, AC15: sub = +5.0, aim = range_max = +1.944, cap binds.
+    """AC4, AC15: sub = +5.0, aim = range_max = +1.944.
+    Under the STORY-027 cap (9.0) this does not bind.
     EXPECTED TO FAIL: missing source_db / aim_point_db (DEF-601).
     """
     audio = _white_stereo()
@@ -141,10 +150,11 @@ def test_tc614_sub_above_range_cap_binds():
     a = sub_actions[0]
 
     assert a.trigger == "range_compliance"
-    # required = 1.944 - 5.0 = -3.056; cap binds at -2.0
-    assert abs(a.applied_db - (-2.0)) < 1e-9
-    assert a.cap_reached is True
-    assert abs(a.resulting_db - 3.0) < 0.001  # 5.0 - 2.0 = +3.0
+    # required = 1.944 - 5.0 = -3.056; well under the 9.0 cap, so applied_db
+    # (after the 0.60x delivery-efficiency compensation nets out) == -3.056.
+    assert abs(a.applied_db - (-3.056)) < 1e-9
+    assert a.cap_reached is False
+    assert abs(a.resulting_db - 1.944) < 0.001  # 5.0 - 3.056 = +1.944
 
     # Required fields — EXPECTED TO FAIL (DEF-601)
     assert hasattr(a, "source_db"), "Missing source_db (DEF-601)"
@@ -277,8 +287,10 @@ def test_tc621_lowmid_above_range_below_demud_no_correction():
 # ---------------------------------------------------------------------------
 
 def test_tc622_demud_fires_cap_binds():
-    """AC5, AC19: low_mid = +7.0, de-mud fires (7.0 > 4.0), cap binds.
-    EXPECTED TO FAIL: missing source_db / aim_point_db (DEF-601).
+    """AC5, AC19: low_mid = +7.0, de-mud fires (7.0 > 4.0).
+    Test name is legacy (TC-622 id); under the STORY-027 decoupled de_mud
+    cap the correction reaches its aim point without binding -- see the
+    body assertions for the current, correct expected values.
     """
     audio = _white_stereo()
     pre_band_levels = {"sub": 0.0, "low_mid": 7.0, "mid": 0.0}
@@ -288,10 +300,13 @@ def test_tc622_demud_fires_cap_binds():
     assert len(lm_actions) == 1
     a = lm_actions[0]
     assert a.trigger == "de_mud"
-    # applied = clamp(2.0 - 7.0, -2.0, +2.0) = -2.0; cap reached
-    assert abs(a.applied_db - (-2.0)) < 1e-9
-    assert a.cap_reached is True
-    assert abs(a.resulting_db - 5.0) < 0.001  # 7.0 - 2.0 = +5.0
+    # STORY-027 §3.3: de_mud uses its own cap (6.522), decoupled from low_mid's
+    # range-compliance cap. applied = clamp(2.0 - 7.0, -6.522, +6.522) = -5.0;
+    # cap not reached (the old cap=2.0 behaviour this test asserted made the
+    # de_mud aim point structurally unreachable -- that was the STORY-027 bug).
+    assert abs(a.applied_db - (-5.0)) < 1e-9
+    assert a.cap_reached is False
+    assert abs(a.resulting_db - 2.0) < 0.001  # 7.0 - 5.0 = +2.0
 
     # Required fields — EXPECTED TO FAIL (DEF-601)
     assert hasattr(a, "source_db"), "Missing source_db (DEF-601)"
@@ -378,7 +393,8 @@ def test_tc626_demud_at_threshold_boundary():
 # ---------------------------------------------------------------------------
 
 def test_tc627_demud_just_above_threshold():
-    """AC5: low_mid = +4.001 (> 4.0) → de-mud fires; cap reached (4.001 > 2.0 + 2.0).
+    """AC5: low_mid = +4.001 (> 4.0) → de-mud fires; cap not reached under the
+    STORY-027 de_mud cap (6.522).
     EXPECTED TO FAIL: missing aim_point_db (DEF-601).
     """
     audio = _white_stereo()
@@ -389,9 +405,11 @@ def test_tc627_demud_just_above_threshold():
     assert len(lm_actions) == 1, f"Expected de-mud to fire at +4.001, got {lm_actions}"
     a = lm_actions[0]
     assert a.trigger == "de_mud"
-    # required = 2.0 - 4.001 = -2.001; cap = 2.0 → applied = -2.0; cap_reached = True
-    assert abs(a.applied_db - (-2.0)) < 1e-9
-    assert a.cap_reached is True
+    # STORY-027 §3.3: de_mud's own cap is 6.522, not low_mid's 2.0.
+    # required = 2.0 - 4.001 = -2.001; well within the cap -> applied = -2.001,
+    # cap not reached.
+    assert abs(a.applied_db - (-2.001)) < 1e-9
+    assert a.cap_reached is False
 
     # EXPECTED TO FAIL (DEF-601)
     assert hasattr(a, "aim_point_db"), "Missing aim_point_db (DEF-601)"
@@ -600,7 +618,7 @@ def test_tc654_sosfiltfilt_gain_halved_correctly():
     tone_20hz = amplitude * np.sin(2 * np.pi * freq * t).astype(np.float64)
     audio_stereo = np.stack([tone_20hz, tone_20hz], axis=1)
 
-    # sub = -5.247: required = -3.747 - (-5.247) = +1.500; cap = 2.0 does not bind
+    # sub = -5.247: required = -3.747 - (-5.247) = +1.500; cap = 9.0 does not bind
     # applied_db = +1.500
     pre_band_levels = {"sub": -5.247, "low_mid": 0.0, "mid": 0.0}
     out, actions = apply_corrective_eq(audio_stereo, SR, _TARGETS, pre_band_levels)
@@ -670,14 +688,15 @@ def test_tc656_lowmid_bell_mid_bleed_documented():
     from suno_mastering.mastering.corrective_eq import apply_corrective_eq
 
     audio = _white_stereo()
-    # Trigger de-mud: low_mid = +7.0 → applied = -2.0 dB bell at ~244.9 Hz
+    # Trigger de-mud: low_mid = +7.0 -> applied = -5.0 dB bell at ~244.9 Hz
+    # (STORY-027 §3.3: de_mud's own cap is 6.522, so 2.0 - 7.0 = -5.0 is not clamped)
     pre_band_levels = {"sub": 0.0, "low_mid": 7.0, "mid": 0.0}
     out, actions = apply_corrective_eq(audio, SR, _TARGETS, pre_band_levels)
 
     lm_actions = [a for a in actions if a.band == "low_mid"]
     assert len(lm_actions) == 1, "Expected one low_mid action for de-mud"
     a = lm_actions[0]
-    assert abs(a.applied_db - (-2.0)) < 1e-9, f"Expected applied_db=-2.0, got {a.applied_db}"
+    assert abs(a.applied_db - (-5.0)) < 1e-9, f"Expected applied_db=-5.0, got {a.applied_db}"
 
     # Audio must be modified (filter was applied)
     assert not np.allclose(out, audio), "Audio must be modified by bell filter"

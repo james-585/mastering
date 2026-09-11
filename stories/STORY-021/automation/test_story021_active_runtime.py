@@ -70,8 +70,18 @@ class FakeModel:
 
 
 @pytest.fixture(autouse=True)
-def isolated_model_cache():
+def isolated_model_cache(monkeypatch):
     clear_model_cache()
+    # StemConfig's default stem_cache_dir points at the real, persistent,
+    # shared ~/.cache/suno-mastering/stems disk cache (STORY-020). These tests
+    # construct plain StemConfig() with no override, so without this they both
+    # read stale fake-audio results back from a prior run (silently skipping
+    # model_loader -- the FakeModel is never invoked, which looks identical to
+    # "cache hit" but isn't what these tests are exercising) and write real
+    # entries into the user's actual cache directory. Disable disk caching for
+    # this file entirely; only the in-memory model cache under test is real.
+    monkeypatch.setattr("suno_mastering.io.stem_cache.load", lambda *a, **k: None)
+    monkeypatch.setattr("suno_mastering.io.stem_cache.save", lambda *a, **k: None)
     yield
     clear_model_cache()
 
@@ -345,10 +355,12 @@ def test_tc021_10_runtime_provenance_is_complete(audio: np.ndarray) -> None:
     assert metadata["cache_key"][0] == CACHE_SCHEMA_VERSION
     assert metadata["torch_version"] == "fake-torch-2.1"
     assert metadata["profile"]["version"] == "provenance-v1"
-    # The product default model is htdemucs_6s (STORY-022 owner decision), so
-    # the default StemConfig used here produces the six-stem source order.
-    assert metadata["model_source_order"] == list(SIX_SOURCES)
-    assert metadata["canonical_source_order"] == list(SIX_SOURCES)
+    # STORY-022 originally set htdemucs_6s as the product default, but that was
+    # later reverted back to htdemucs (4-stem) -- see config.py StemConfig.model_name
+    # and master_track.bat history. The default StemConfig used here therefore
+    # produces the four-stem source order.
+    assert metadata["model_source_order"] == list(FOUR_SOURCES)
+    assert metadata["canonical_source_order"] == list(FOUR_SOURCES)
     assert metadata["deterministic_settings"] == {
         "initial_seed": 20260817,
         "deterministic_algorithms": True,

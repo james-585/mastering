@@ -5,9 +5,9 @@ from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "implementation"))
 
-from implementation.harshness_control import apply_stem_harshness_control
+from harshness_control import apply_stem_harshness_control
 
 SR = 48000
 

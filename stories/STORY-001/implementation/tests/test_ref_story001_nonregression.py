@@ -32,10 +32,12 @@ def test_tc391_measurements_dataclass_shape_unchanged():
     contract are present, without regressing STORY-001's core shape.
 
     The architecture-approved additions after STORY-003 are the
-    `sanity_warnings` advisory list and the STORY-007 artifact-reporting
-    fields (`artifact_detection` and `plausibility_warnings`). This test is
-    intentionally validating the live contract rather than a stale pre-Story-003
-    snapshot.
+    `sanity_warnings` advisory list, the STORY-007 artifact-reporting fields
+    (`artifact_detection` and `plausibility_warnings`), the STORY-F2/002-006
+    HF band-limit fields (`hf_band_limit_hz`, `hf_band_limit_confidence`),
+    `lra` (loudness range), and STORY-013's `per_band_stereo_width`. This
+    test is intentionally validating the live contract rather than a stale
+    pre-Story-003 snapshot.
     """
     field_names = [f.name for f in dataclasses.fields(Measurements)]
     assert field_names == [
@@ -43,6 +45,8 @@ def test_tc391_measurements_dataclass_shape_unchanged():
         "integrated_lufs", "true_peak_dbtp", "dynamic_range_db",
         "frequency_balance", "stereo_phase", "clipping",
         "sanity_warnings", "artifact_detection", "plausibility_warnings",
+        "hf_band_limit_hz", "hf_band_limit_confidence", "lra",
+        "per_band_stereo_width",
     ]
 
 

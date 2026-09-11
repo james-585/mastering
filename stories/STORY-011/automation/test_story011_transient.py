@@ -5,9 +5,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "implementation"))
 
-from implementation.transient_restoration import (
+from transient_restoration import (
     _local_attack_ratio,
     apply_stem_transient_restoration,
 )

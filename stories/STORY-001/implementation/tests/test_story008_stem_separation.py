@@ -157,21 +157,30 @@ def test_tc802_null_sum_test(stereo_5s):
 
 def test_tc803_bass_mono_verification(mock_stems):
     """AC3: Bass stem has perfect mono (correlation ≈ 1.0) below 90 Hz after processing.
-    
+
     Method:
       1. Process the bass stem with _mono_sum_sub_bass()
-      2. Bandpass-filter <90 Hz from L and R channels
+      2. Isolate <90 Hz content with a hard FFT brick-wall (matching how
+         _mono_sum_sub_bass itself defines the cutoff -- an analog IIR filter
+         such as an 8th-order Butterworth has a soft rolloff and still passes
+         meaningful, still-stereo energy well above 90 Hz, e.g. ~40% gain at
+         100 Hz, which falsely reads as decorrelation; see DEF triage note)
       3. Compute cross-correlation; expect correlation coefficient ≈ 1.0
     """
     bass_stem = mock_stems["bass"]
-    
+
     # Apply mono summing
     processed_bass = _mono_sum_sub_bass(bass_stem, SR, cutoff_hz=90.0)
-    
-    # Extract <90 Hz content with bandpass filter
-    sos = butter(8, 90.0, btype="lowpass", fs=SR, output="sos")
-    L_sub = sosfiltfilt(sos, processed_bass[:, 0])
-    R_sub = sosfiltfilt(sos, processed_bass[:, 1])
+
+    # Extract <90 Hz content with the same hard brick-wall the implementation
+    # itself uses, rather than an analog filter with a soft rolloff.
+    n = processed_bass.shape[0]
+    fft = np.fft.rfft(processed_bass, axis=0)
+    freqs = np.fft.rfftfreq(n, d=1.0 / SR)
+    fft[freqs > 90.0, :] = 0.0
+    sub_band = np.fft.irfft(fft, n=n, axis=0)
+    L_sub = sub_band[:, 0]
+    R_sub = sub_band[:, 1]
     
     # Compute cross-correlation coefficient
     # Normalize by the geometric mean of the autocorrelations
@@ -205,8 +214,17 @@ def test_tc803b_bass_mono_only_on_sub_bass():
     ]).astype(np.float64)
 
     processed = _mono_sum_sub_bass(bass, SR, cutoff_hz=90.0)
-    low_diff = processed[:, 0] - processed[:, 1]
-    assert np.max(np.abs(low_diff[:2000])) < 1e-8, "Low-band bass should be mono below 90 Hz"
+
+    # Check the low band in isolation (raw broadband diff legitimately stays
+    # nonzero -- it's dominated by the preserved, still-stereo 180 Hz content,
+    # which is correct behaviour, not a failure of the low-band mono claim).
+    n = processed.shape[0]
+    fft = np.fft.rfft(processed, axis=0)
+    freqs = np.fft.rfftfreq(n, d=1.0 / SR)
+    fft[freqs > 90.0, :] = 0.0
+    sub_band = np.fft.irfft(fft, n=n, axis=0)
+    low_diff = sub_band[:, 0] - sub_band[:, 1]
+    assert np.max(np.abs(low_diff)) < 1e-8, "Low-band bass should be mono below 90 Hz"
     assert np.max(np.abs(processed[:, 0] - processed[:, 1])) > 1e-3, (
         "Stereo content above the bass cutoff was collapsed; this creates the bass ringing artifact"
     )
@@ -460,8 +478,11 @@ def test_tc808_pipeline_uses_stem_processed_audio(monkeypatch):
 
     from suno_mastering import pipeline as pipeline_mod
 
-    original_audio = np.full((256, 2), 0.05, dtype=np.float64)
-    processed_audio = np.full((256, 2), 0.10, dtype=np.float64)
+    # 1 s @ 44.1 kHz: long enough to clear pyloudnorm's BS.1770 block-size floor
+    # (real measurement calls appear deeper in pipeline.py than this mock
+    # originally accounted for; 256 samples was too short once those were added).
+    original_audio = np.full((44100, 2), 0.05, dtype=np.float64)
+    processed_audio = np.full((44100, 2), 0.10, dtype=np.float64)
     resample_seen = {}
 
     @dataclass
@@ -476,6 +497,23 @@ def test_tc808_pipeline_uses_stem_processed_audio(monkeypatch):
         channels = 2
         dynamic_range_db = 9.0
         stereo_phase = types.SimpleNamespace(widened_regions=[])
+        # DEF-006-01 (pipeline.py) / adaptive_harshness.py: corrective EQ and
+        # adaptive harshness both read frequency_balance's three bands. Not
+        # exercised by this test; stub every field they touch as "no correction".
+        frequency_balance = types.SimpleNamespace(
+            low_end=types.SimpleNamespace(
+                range_hz=(20, 120), relative_db=0.0, reference_db=0.0,
+                deviation_db=0.0, flagged=False, flag_name=None,
+            ),
+            low_mid_mud=types.SimpleNamespace(
+                range_hz=(200, 500), relative_db=0.0, reference_db=0.0,
+                deviation_db=0.0, flagged=False, flag_name=None,
+            ),
+            presence_harsh=types.SimpleNamespace(
+                range_hz=(2000, 5000), relative_db=0.0, reference_db=0.0,
+                deviation_db=0.0, flagged=False, flag_name=None,
+            ),
+        )
 
     monkeypatch.setattr(
         pipeline_mod.ingest_mod,

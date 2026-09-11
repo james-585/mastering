@@ -68,7 +68,7 @@ def minimal_targets_json(tmp_path_factory):
             "high":     {"freq_hz": [5000,10000],"range_db_re_mid": {"min": -17.062,"max": -4.060}, "median_db_re_mid": -9.772},
             "air":      {"freq_hz": [10000,22050],"range_db_re_mid":{"min": -20.053,"max": -11.444},"median_db_re_mid": -16.015},
         },
-        "de_mud": {"flag_threshold_db_above_mid": 4.0, "correction_aim_point_db": 2.0},
+        "de_mud": {"flag_threshold_db_above_mid": 4.0, "correction_aim_point_db": 2.0, "correction_cap_db": 6.522},
         "stereo_width": {
             "sub":      _sw_band,
             "low":      _sw_band,
@@ -244,7 +244,7 @@ def test_tc647_corrective_action_all_fields():
             "sub":     {"freq_hz": [20, 60],   "range_db_re_mid": {"min": -3.747, "max": 1.944},  "correction_cap_db": 2.0},
             "low_mid": {"freq_hz": [120, 500],  "range_db_re_mid": {"min": -0.145, "max": 8.522},  "correction_cap_db": 2.0},
         },
-        "de_mud": {"flag_threshold_db_above_mid": 4.0, "correction_aim_point_db": 2.0},
+        "de_mud": {"flag_threshold_db_above_mid": 4.0, "correction_aim_point_db": 2.0, "correction_cap_db": 6.522},
     }
     pre_band_levels = {"sub": -6.247, "low_mid": 7.0, "mid": 0.0}
     _, eq_actions = apply_corrective_eq(audio, 44100, targets, pre_band_levels)
@@ -543,7 +543,7 @@ def test_tc664_dc_offset_no_crash(tmp_path):
             "sub":     {"freq_hz": [20, 60],   "range_db_re_mid": {"min": -3.747, "max": 1.944}, "correction_cap_db": 2.0},
             "low_mid": {"freq_hz": [120, 500],  "range_db_re_mid": {"min": -0.145, "max": 8.522}, "correction_cap_db": 2.0},
         },
-        "de_mud": {"flag_threshold_db_above_mid": 4.0, "correction_aim_point_db": 2.0},
+        "de_mud": {"flag_threshold_db_above_mid": 4.0, "correction_aim_point_db": 2.0, "correction_cap_db": 6.522},
     }
     pre_band_levels = {"sub": -6.0, "low_mid": 5.0, "mid": 0.0}
     out_eq, eq_actions = apply_corrective_eq(base, 44100, targets, pre_band_levels)

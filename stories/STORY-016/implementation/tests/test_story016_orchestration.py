@@ -21,7 +21,12 @@ def test_stage_order_and_traceability():
 
     result = pipeline.run(audio, SR, stems={"drums": audio, "bass": audio, "vocals": audio, "synth": audio}, use_stems=True)
 
-    assert result["decision"] in {"pass", "refine"}
+    # STORY-025 grounded review adds "pending_human_review": a positive verdict
+    # (pass/refine) without a human review supplied defers rather than trusting
+    # an unconfirmed automated "sounds good" (orchestration.py line ~159).
+    # No human review is supplied here, so this is the expected outcome, not a
+    # regression.
+    assert result["decision"] in {"pass", "refine", "pending_human_review"}
     assert [s["stage"] for s in result["audit"]] == [
         "ingest",
         "analysis",
@@ -64,8 +69,18 @@ def test_pass_reject_refine_flow():
     good_result = pipeline.run(good, SR, stems={"mix": good_proc}, use_stems=False)
     poor_result = pipeline.run(poor, SR, stems={"mix": poor_proc}, use_stems=False)
 
-    assert good_result["decision"] in {"pass", "refine"}
-    assert poor_result["decision"] == "reject"
+    # grounded_quality_review.evaluate_quality_review() returns "pending_human_review"
+    # unconditionally whenever human_review=None (STORY-025; see its docstring:
+    # "must not be treated as a trusted pass/reject/refine verdict") -- neither
+    # branch below supplies human_review, so *both* good and poor audio now
+    # legitimately land on pending_human_review regardless of quality. This
+    # test can no longer distinguish good/poor via `decision` at all; doing so
+    # again would require passing a real human_review={"decision": ...} payload,
+    # which is a test-design decision (what counts as "the human said reject"
+    # here?) rather than a mechanical fix -- flagging as a coverage gap rather
+    # than guessing at a human_review fixture.
+    assert good_result["decision"] == "pending_human_review"
+    assert poor_result["decision"] == "pending_human_review"
 
 
 def test_true_peak_safety_gate():
@@ -86,6 +101,7 @@ def test_real_track_pipeline_runs_and_exports():
 
     result = pipeline.run(data, sample_rate, stems=None, use_stems=True, allow_stereo_fallback=True)
 
-    assert result["decision"] in {"pass", "refine", "reject"}
+    # See test_stage_order_and_traceability re: pending_human_review.
+    assert result["decision"] in {"pass", "refine", "reject", "pending_human_review"}
     assert result["output"].shape == data.shape
     assert np.isfinite(result["output"]).all()

@@ -17,7 +17,7 @@ def test_corrective_eq_returns_actions_and_modifies_audio():
             "sub": {"range_db_re_mid": {"min": -6.0, "max": 6.0}, "freq_hz": [20, 60], "correction_cap_db": 3.0},
             "low_mid": {"range_db_re_mid": {"min": -3.0, "max": 3.0}, "freq_hz": [120, 500], "correction_cap_db": 3.0},
         },
-        "de_mud": {"flag_threshold_db_above_mid": 4.0, "correction_aim_point_db": 2.0},
+        "de_mud": {"flag_threshold_db_above_mid": 4.0, "correction_aim_point_db": 2.0, "correction_cap_db": 1.0},
     }
 
     pre_band_levels = {"sub": -8.0, "low_mid": 5.0, "mid": 0.0}
