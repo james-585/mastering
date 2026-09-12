@@ -55,6 +55,8 @@ A handful of tests and scripts skip automatically when a given file is missing, 
 - `GusGus_-_Over_Arabian_Horse_Album.wav`
 - `Wavy_Gravy.wav`
 - `Leftfield_-_Melt_Audio.wav`
+- `Black_Flute_Remastered.wav`
+- `The_Chemical_Brothers_-_Live_Again_ft_Halo_Maud.wav`
 
 Drop your own copies into `Reference Tracks/` using these exact filenames to enable those tests locally.
 

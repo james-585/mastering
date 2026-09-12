@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import dataclasses
 import os
+from pathlib import Path
 from datetime import datetime, timezone
 from typing import List, Optional
 
@@ -62,7 +63,8 @@ from .ref_helpers import (
 # Module constants
 # ---------------------------------------------------------------------------
 SR = 44100
-REF_DIR = "C:/Users/james/Documents/suno-mastering/Reference Tracks"
+# tests/ -> implementation -> STORY-001 -> stories -> repo root
+REF_DIR = Path(__file__).resolve().parents[4] / "Reference Tracks"
 TRACK_NAMES = [
     "Black_Flute_Remastered.wav",
     "GusGus_-_Over_Arabian_Horse_Album.wav",
