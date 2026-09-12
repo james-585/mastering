@@ -1,39 +1,34 @@
 # Project layout guide
 
-This repository contains multiple kinds of content. The goal is to make the active developer path clear without hiding the design history.
+This repository contains one installable Python package plus its supporting build, docs, and history.
 
 ## Source of truth
 
-- [stories](../stories): story archive, architecture, requirements, and implementation work
-- [stories/STORY-001/implementation](../stories/STORY-001/implementation): current active Python implementation area
-- [Reference Tracks](../Reference%20Tracks): reference audio and measurement reports used for validation
+- [src/suno_mastering](../src/suno_mastering): the installable package — pipeline, stem-level repairs, quality review, reporting, and the `tools/` subpackage (orchestration, Demucs tuning/runtime helpers, release-candidate audits).
+- [tests](../tests): the pytest suite, one flat directory (`tests/story025_validation/` is its own subfolder only because it carries a dedicated `conftest.py`).
+- [scripts](../scripts): standalone offline utilities that are not part of the runtime pipeline (e.g. `build_reference_curve.py`).
+- [Reference Tracks](../Reference%20Tracks): reference audio and measurement reports used for validation (the `.wav` files themselves are local-only, not committed — see the README).
+
+## History
+
+- [docs/design-history](design-history): the original story-by-story requirements, architecture, and defect-tracking record this package was built against. Read-only historical record — do not edit path references inside it to match the current layout.
 
 ## Historical / experimental
 
-- [CMakeLists.txt](../CMakeLists.txt): legacy CMake scaffolding
-- [src_cpp](../src_cpp): historical C++ DSP experimentation
-- older build folders at the repo root: [build](../build), [build-ninja](../build-ninja), [build-vs2026](../build-vs2026)
-
-These artifacts are not the active product shape and should be treated as historical or generated context unless a specific story explicitly reactivates them.
+- [legacy/CMakeLists.txt](../legacy/CMakeLists.txt) and [legacy/src_cpp](../legacy/src_cpp): historical C++ DSP experimentation (a `suno_dsp` pybind11 extension), not part of the active product path.
+- Generated build folders at the repo root ([build](../build), [build-ninja](../build-ninja), [build-vs2026](../build-vs2026), [dist](../dist)): build output, not source.
 
 ## Generated / temporary output
 
-The following areas are for local experimentation and should not be treated as primary code:
-
-- [tmp](../tmp)
-- [tmp_e2e_run](../tmp_e2e_run)
-- [tmp_ref_report](../tmp_ref_report)
-- [test_runs](../test_runs)
-
-These folders are useful for debugging and verification, but they should not be the main place a contributor expects to find the source tree.
+`tmp/`, `tmp_e2e_run/`, `tmp_ref_report/`, `test_runs/`, `artifacts/` hold local experimentation and generated reports — useful for debugging, not the source tree.
 
 ## Root-level intent
 
-The repo root should remain a navigation layer and project entry point, not a catch-all for experiments. Keep only documents, metadata, and short-lived launch scripts here.
+The repo root stays a navigation layer and entry point (`pyproject.toml`, `README.md`, `LICENSE`, the `.bat` launchers) — not a catch-all for experiments.
 
 ## Working rule for contributors
 
-1. Start in [stories](../stories).
-2. Use [stories/STORY-001/implementation](../stories/STORY-001/implementation) for active product work.
-3. Leave generated outputs in temporary directories or ignore them in the source tree.
-4. Treat C++ and CMake directories as historical scaffolding unless a documented story requires them.
+1. Install with `pip install -e ".[test]"` from the repo root.
+2. Source lives in [src/suno_mastering](../src/suno_mastering); tests in [tests](../tests).
+3. Consult [docs/design-history](design-history) for the reasoning behind a given piece of behaviour, but don't treat it as a place to make new changes.
+4. Treat `legacy/` as historical scaffolding unless a documented need reactivates it.

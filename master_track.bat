@@ -19,10 +19,8 @@ goto collect_extra
 :done_extra
 
 set "REPO_ROOT=%~dp0"
-set "IMPLEMENTATION_DIR=%REPO_ROOT%stories\STORY-001\implementation"
-set "PYTHONPATH=%IMPLEMENTATION_DIR%;%PYTHONPATH%"
 
-cd /d "%IMPLEMENTATION_DIR%"
+cd /d "%REPO_ROOT%"
 
 REM Load HF_TOKEN from .env if present
 if exist "%REPO_ROOT%.env" (

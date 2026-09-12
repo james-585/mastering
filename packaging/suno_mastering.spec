@@ -19,16 +19,13 @@ from pathlib import Path
 from PyInstaller.utils.hooks import collect_data_files
 
 REPO_ROOT = Path(SPECPATH).resolve().parent
-IMPL = REPO_ROOT / "stories" / "STORY-001" / "implementation"
+IMPL = REPO_ROOT / "src"
 
-# Sibling story-implementation modules suno_mastering used to reach via
-# runtime sys.path.insert (pipeline.py, stem_integration.py, cli.py) now
-# live as proper submodules under suno_mastering/ (stem_stages/,
-# quality_review/) -- see _paths.py's docstring. PyInstaller's normal
-# Analysis() import scan picks them up automatically as part of the
-# suno_mastering package, the same as any other submodule; no separate
-# story-folder mirroring into the bundle is needed anymore (2026-09-12
-# restructure).
+# suno_mastering is a single installable package under src/ (2026-09-12
+# restructure). PyInstaller's normal Analysis() import scan picks up every
+# submodule -- stem_stages/, quality_review/, tools/ included -- the same
+# as any other package; no separate story-folder mirroring into the bundle
+# is needed.
 
 datas = [
     (str(REPO_ROOT / "targets.json"), "."),

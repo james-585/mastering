@@ -5,7 +5,7 @@
             "name": "Python: Run Suno Mastering",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/stories/STORY-001/implementation/suno_mastering/__main__.py",
+            "program": "${workspaceFolder}/src/suno_mastering/__main__.py",
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}",
             "justMyCode": true
@@ -17,7 +17,7 @@
             "program": "${command:python.interpreterPath}",
             "args": [
                 "-c",
-                "import sys; sys.path.insert(0, r'${workspaceFolder}/stories/STORY-001/implementation'); import suno_mastering; import suno_dsp; print('Loaded suno_dsp successfully')"
+                "import sys; sys.path.insert(0, r'${workspaceFolder}/src'); import suno_mastering; import suno_dsp; print('Loaded suno_dsp successfully')"
             ],
             "cwd": "${workspaceFolder}",
             "stopAtEntry": false,

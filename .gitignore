@@ -33,6 +33,9 @@ tmp_e2e_run/
 tmp_ref_report/
 test_runs/
 
+# Local git worktrees
+.worktrees/
+
 # Project-specific generated artifacts
 *.wav
 *.mp3

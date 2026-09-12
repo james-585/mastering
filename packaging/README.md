@@ -20,8 +20,8 @@ unzip it and double-click `SunoMastering.exe` inside. No Python install, no
 
 - **Bundled**: the full Python + dependency environment (torch, demucs,
   scipy, numpy, soundfile), `targets.json`, the genre reference curve, and
-  every `stories/STORY-0XX/implementation` folder the pipeline imports from
-  at runtime (see `_paths.py`'s docstring for the full list and why).
+  the `suno_mastering` package under `src/` (PyInstaller's Analysis() scan
+  picks up every submodule automatically).
 - **Not bundled**: Demucs's own model weights (~340 MB per model) — those
   still download from Hugging Face the first time stem separation is used,
   same as in dev mode. That's why the web UI's Hugging Face token box

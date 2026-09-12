@@ -29,6 +29,9 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Install suno_mastering (editable)
+        run: pip install -e ".[test]"
+
       - name: Run test suite
         # Runs everything not marked "slow" (the real Demucs/Torch inference
         # and other >budget NFR tests -- those are a separate, deliberately
