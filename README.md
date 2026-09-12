@@ -48,18 +48,7 @@ Stem separation (Demucs) needs a Hugging Face access token the first time it dow
 
 ## Reference Tracks
 
-`Reference Tracks/` holds commercial audio (e.g. GusGus, Leftfield) used as real-world test fixtures. These `.wav` files are never committed to this repo (`.gitignore` excludes all `*.wav`) and are not bundled into the packaged `.exe` — only you having a personal, legally-obtained copy of a track locally makes those files present.
-
-A handful of tests and scripts skip automatically when a given file is missing, but reference it by exact name if you want to run them:
-
-- `Sunday Club.wav`
-- `GusGus_-_Over_Arabian_Horse_Album.wav`
-- `Wavy_Gravy.wav`
-- `Leftfield_-_Melt_Audio.wav`
-- `Black_Flute_Remastered.wav`
-- `The_Chemical_Brothers_-_Live_Again_ft_Halo_Maud.wav`
-
-Drop your own copies into `Reference Tracks/` using these exact filenames to enable those tests locally.
+`Reference Tracks/` holds commercial audio  used as real-world test fixtures. These `.wav` files are never committed to this repo (`.gitignore` excludes all `*.wav`) and are not bundled into the packaged `.exe` — only you having a personal, legally-obtained copy of a track locally makes those files present.
 
 ## Development
 
